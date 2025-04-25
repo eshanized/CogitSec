@@ -36,7 +36,7 @@ rustls = "0.21.1"
 lettre = "0.10.4"
 md-5 = "0.10.5"
 sha2 = "0.10.6"
-base64 = "0.21.0"
+base64 = "0.22.1"
 csv = "1.2.2"
 
 [build-dependencies]
