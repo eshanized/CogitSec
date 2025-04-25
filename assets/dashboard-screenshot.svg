@@ -1,0 +1,475 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="800"
+   height="450"
+   viewBox="0 0 211.667 119.062"
+   version="1.1"
+   id="dashboard_screenshot"
+   xmlns="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <linearGradient
+       id="window_bg"
+       x1="0%"
+       y1="0%"
+       x2="100%"
+       y2="100%">
+      <stop
+         offset="0%"
+         style="stop-color:#1e1e2e;stop-opacity:1" />
+      <stop
+         offset="100%"
+         style="stop-color:#313244;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       id="accent"
+       x1="0%"
+       y1="0%"
+       x2="100%"
+       y2="100%">
+      <stop
+         offset="0%"
+         style="stop-color:#6a11cb;stop-opacity:1" />
+      <stop
+         offset="100%"
+         style="stop-color:#2575fc;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main window background -->
+  <rect
+     style="fill:url(#window_bg);stroke:#444444;stroke-width:0.529;stroke-linecap:round;stroke-linejoin:round"
+     id="window"
+     width="201.083"
+     height="108.479"
+     x="5.292"
+     y="5.292"
+     rx="2.646"
+     ry="2.646" />
+  
+  <!-- Window title bar -->
+  <rect
+     style="fill:#1a1a1a;stroke:none"
+     id="titlebar"
+     width="201.083"
+     height="5.292"
+     x="5.292"
+     y="5.292"
+     rx="2.646"
+     ry="2.646" />
+  
+  <!-- Title bar buttons -->
+  <circle
+     style="fill:#ff5555;stroke:none"
+     id="close_button"
+     cx="9.525"
+     cy="7.938"
+     r="1.323" />
+  <circle
+     style="fill:#ffdd55;stroke:none"
+     id="minimize_button"
+     cx="13.758"
+     cy="7.938"
+     r="1.323" />
+  <circle
+     style="fill:#55aa55;stroke:none"
+     id="maximize_button"
+     cx="17.992"
+     cy="7.938"
+     r="1.323" />
+  
+  <!-- Sidebar navigation -->
+  <rect
+     style="fill:#2a2a3a;stroke:none"
+     id="sidebar"
+     width="26.458"
+     height="103.188"
+     x="5.292"
+     y="10.583" />
+  
+  <!-- Navigation items -->
+  <rect
+     style="fill:url(#accent);stroke:none"
+     id="nav_item_selected"
+     width="26.458"
+     height="5.292"
+     x="5.292"
+     y="21.167" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="nav_item1"
+     width="21.167"
+     height="2.646"
+     x="7.938"
+     y="31.75" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="nav_item2"
+     width="21.167"
+     height="2.646"
+     x="7.938"
+     y="39.688" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="nav_item3"
+     width="21.167"
+     height="2.646"
+     x="7.938"
+     y="47.625" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="nav_item4"
+     width="21.167"
+     height="2.646"
+     x="7.938"
+     y="55.562" />
+  
+  <!-- Main content area -->
+  <rect
+     style="fill:#252535;stroke:none"
+     id="content_area"
+     width="169.333"
+     height="103.188"
+     x="36.304"
+     y="10.583" />
+  
+  <!-- Header section -->
+  <rect
+     style="fill:#32323e;stroke:none"
+     id="header"
+     width="164.042"
+     height="10.583"
+     x="39.688"
+     y="15.875" />
+  <rect
+     style="fill:#ffffff;stroke:none"
+     id="header_text"
+     width="42.333"
+     height="2.646"
+     x="44.979"
+     y="19.844" />
+  
+  <!-- Dashboard widgets -->
+  <!-- Widget 1: Status summary -->
+  <rect
+     style="fill:#3c3c48;stroke:none;stroke-width:0.529;stroke-linecap:round;stroke-linejoin:round"
+     id="widget1"
+     width="52.917"
+     height="31.75"
+     x="39.688"
+     y="31.75"
+     rx="1.323"
+     ry="1.323" />
+  <rect
+     style="fill:#606080;stroke:none"
+     id="widget1_header"
+     width="47.625"
+     height="2.646"
+     x="42.333"
+     y="34.396" />
+  
+  <!-- Stat blocks inside widget 1 -->
+  <rect
+     style="fill:url(#accent);stroke:none"
+     id="stat1"
+     width="10.583"
+     height="10.583"
+     x="44.979"
+     y="42.333" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="stat1_text"
+     width="21.167"
+     height="2.646"
+     x="60.854"
+     y="44.979" />
+  <rect
+     style="fill:#6a80aa;stroke:none"
+     id="stat2"
+     width="10.583"
+     height="10.583"
+     x="44.979"
+     y="55.562" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="stat2_text"
+     width="21.167"
+     height="2.646"
+     x="60.854"
+     y="58.208" />
+     
+  <!-- Widget 2: Chart -->
+  <rect
+     style="fill:#3c3c48;stroke:none;stroke-width:0.529;stroke-linecap:round;stroke-linejoin:round"
+     id="widget2"
+     width="84.667"
+     height="31.75"
+     x="97.896"
+     y="31.75"
+     rx="1.323"
+     ry="1.323" />
+  <rect
+     style="fill:#606080;stroke:none"
+     id="widget2_header"
+     width="47.625"
+     height="2.646"
+     x="100.542"
+     y="34.396" />
+     
+  <!-- Chart lines -->
+  <path
+     style="fill:none;stroke:url(#accent);stroke-width:0.794;stroke-linecap:round;stroke-linejoin:round"
+     d="m 103.188,55.562 10.583,-5.292 10.583,2.646 10.583,-10.583 10.583,5.292 10.583,-2.646 10.583,7.938"
+     id="chart_line" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point1"
+     cx="103.188"
+     cy="55.562"
+     r="1.323" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point2"
+     cx="113.771"
+     cy="50.271"
+     r="1.323" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point3"
+     cx="124.354"
+     cy="52.917"
+     r="1.323" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point4"
+     cx="134.938"
+     cy="42.333"
+     r="1.323" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point5"
+     cx="145.521"
+     cy="47.625"
+     r="1.323" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point6"
+     cx="156.104"
+     cy="44.979"
+     r="1.323" />
+  <circle
+     style="fill:#ffffff;stroke:none"
+     id="point7"
+     cx="166.688"
+     cy="52.917"
+     r="1.323" />
+     
+  <!-- Widget 3: Data table -->
+  <rect
+     style="fill:#3c3c48;stroke:none;stroke-width:0.529;stroke-linecap:round;stroke-linejoin:round"
+     id="widget3"
+     width="84.667"
+     height="36.042"
+     x="39.688"
+     y="68.792"
+     rx="1.323"
+     ry="1.323" />
+  <rect
+     style="fill:#606080;stroke:none"
+     id="widget3_header"
+     width="47.625"
+     height="2.646"
+     x="42.333"
+     y="71.438" />
+     
+  <!-- Table rows -->
+  <rect
+     style="fill:#33334d;stroke:none"
+     id="table_header"
+     width="79.375"
+     height="5.292"
+     x="42.333"
+     y="76.729" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="header_col1"
+     width="15.875"
+     height="2.646"
+     x="44.979"
+     y="78.052" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="header_col2"
+     width="15.875"
+     height="2.646"
+     x="66.146"
+     y="78.052" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="header_col3"
+     width="15.875"
+     height="2.646"
+     x="87.313"
+     y="78.052" />
+     
+  <!-- Table data rows -->
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row1_col1"
+     width="15.875"
+     height="2.646"
+     x="44.979"
+     y="84.667" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row1_col2"
+     width="15.875"
+     height="2.646"
+     x="66.146"
+     y="84.667" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row1_col3"
+     width="15.875"
+     height="2.646"
+     x="87.313"
+     y="84.667" />
+     
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row2_col1"
+     width="15.875"
+     height="2.646"
+     x="44.979"
+     y="89.958" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row2_col2"
+     width="15.875"
+     height="2.646"
+     x="66.146"
+     y="89.958" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row2_col3"
+     width="15.875"
+     height="2.646"
+     x="87.313"
+     y="89.958" />
+     
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row3_col1"
+     width="15.875"
+     height="2.646"
+     x="44.979"
+     y="95.25" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row3_col2"
+     width="15.875"
+     height="2.646"
+     x="66.146"
+     y="95.25" />
+  <rect
+     style="fill:#444455;stroke:none"
+     id="row3_col3"
+     width="15.875"
+     height="2.646"
+     x="87.313"
+     y="95.25" />
+     
+  <!-- Widget 4: Activity log -->
+  <rect
+     style="fill:#3c3c48;stroke:none;stroke-width:0.529;stroke-linecap:round;stroke-linejoin:round"
+     id="widget4"
+     width="52.917"
+     height="36.042"
+     x="129.646"
+     y="68.792"
+     rx="1.323"
+     ry="1.323" />
+  <rect
+     style="fill:#606080;stroke:none"
+     id="widget4_header"
+     width="47.625"
+     height="2.646"
+     x="132.292"
+     y="71.438" />
+     
+  <!-- Log entries -->
+  <rect
+     style="fill:#55aa55;stroke:none"
+     id="log_entry1_icon"
+     width="2.646"
+     height="2.646"
+     x="132.292"
+     y="76.729" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="log_entry1_text"
+     width="36.042"
+     height="2.646"
+     x="137.583"
+     y="76.729" />
+     
+  <rect
+     style="fill:#ffdd55;stroke:none"
+     id="log_entry2_icon"
+     width="2.646"
+     height="2.646"
+     x="132.292"
+     y="82.021" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="log_entry2_text"
+     width="36.042"
+     height="2.646"
+     x="137.583"
+     y="82.021" />
+     
+  <rect
+     style="fill:#ff5555;stroke:none"
+     id="log_entry3_icon"
+     width="2.646"
+     height="2.646"
+     x="132.292"
+     y="87.313" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="log_entry3_text"
+     width="36.042"
+     height="2.646"
+     x="137.583"
+     y="87.313" />
+     
+  <rect
+     style="fill:#55aa55;stroke:none"
+     id="log_entry4_icon"
+     width="2.646"
+     height="2.646"
+     x="132.292"
+     y="92.604" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="log_entry4_text"
+     width="36.042"
+     height="2.646"
+     x="137.583"
+     y="92.604" />
+     
+  <rect
+     style="fill:#55aa55;stroke:none"
+     id="log_entry5_icon"
+     width="2.646"
+     height="2.646"
+     x="132.292"
+     y="97.896" />
+  <rect
+     style="fill:#8080aa;stroke:none"
+     id="log_entry5_text"
+     width="36.042"
+     height="2.646"
+     x="137.583"
+     y="97.896" />
+</svg> 
