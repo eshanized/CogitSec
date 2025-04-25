@@ -311,12 +311,14 @@ impl WordlistManagerPage {
         });
         
         // Unwrap the Rc to get our page
-        let page = match Rc::try_unwrap(page_rc) {
+        match Rc::try_unwrap(page_rc) {
             Ok(page) => page,
-            Err(_) => panic!("Unable to unwrap Rc - this shouldn't happen!"),
-        };
-        
-        page
+            Err(_) => {
+                log::error!("Unable to unwrap Rc in WordlistManager");
+                // Create a new instance as fallback
+                WordlistManagerPage::new(engine.clone())
+            }
+        }
     }
     
     /// Get the root widget
@@ -326,7 +328,27 @@ impl WordlistManagerPage {
     
     /// Handle add username list button click
     fn on_add_username_list_clicked(&self) {
-        // TODO: Implement file selection and list addition
+        if let Some(parent) = self.root.downcast::<gtk::Window>().ok() {
+            let file_chooser = gtk::FileChooserNative::new(
+                Some("Select Wordlist File"),
+                Some(&parent),
+                gtk::FileChooserAction::Open,
+                Some("Open"),
+                Some("Cancel"),
+            );
+            
+            file_chooser.connect_response(move |dialog, response| {
+                if response == gtk::ResponseType::Accept {
+                    if let Some(file) = dialog.file() {
+                        if let Some(path) = file.path() {
+                            // TODO: Implement file selection and list addition
+                        }
+                    }
+                }
+            });
+            
+            file_chooser.show();
+        }
     }
     
     /// Handle add password list button click
@@ -663,7 +685,7 @@ impl WordlistManager {
     
     /// Add a new wordlist
     fn add_wordlist(&self, is_username: bool) -> anyhow::Result<()> {
-        let file_chooser = gtk::FileChooserDialog::new(
+        let file_chooser = gtk::FileChooserNative::new(
             Some(if is_username { "Select Username List" } else { "Select Password List" }),
             None::<&gtk::Window>,
             gtk::FileChooserAction::Open,

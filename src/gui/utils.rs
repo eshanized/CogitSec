@@ -1,6 +1,6 @@
 use gtk::prelude::*;
 use gtk::{
-    FileChooserAction, FileChooserDialog, FileFilter, ResponseType, Window,
+    FileChooserAction, FileChooserNative, FileFilter, ResponseType, Window,
 };
 use gtk::glib;
 use std::path::PathBuf;
@@ -11,11 +11,12 @@ pub fn open_file_chooser_dialog(
     title: &str,
     filters: &[(&str, &[&str])],
 ) -> Option<PathBuf> {
-    let dialog = FileChooserDialog::new(
+    let dialog = FileChooserNative::new(
         Some(title),
         Some(parent),
         FileChooserAction::Open,
-        &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
+        Some("Open"),
+        Some("Cancel"),
     );
 
     // Add filters
@@ -31,29 +32,13 @@ pub fn open_file_chooser_dialog(
     }
 
     // Set up response handling 
-    let result = std::rc::Rc::new(std::cell::RefCell::new(None));
-    let result_clone = result.clone();
+    let response = dialog.run();
     
-    dialog.connect_response(move |dialog, response| {
-        if response == ResponseType::Accept {
-            *result_clone.borrow_mut() = dialog.file().and_then(|file| file.path());
-        }
-        dialog.close();
-    });
-    
-    // Present the dialog and wait synchronously (this is simplified but will work for simple apps)
-    dialog.set_modal(true);
-    dialog.present();
-    
-    // Wait until response is received
-    while dialog.is_visible() {
-        let ctx = glib::MainContext::default();
-        let _ = ctx.iteration(true);
+    if response == ResponseType::Accept {
+        dialog.file().and_then(|file| file.path())
+    } else {
+        None
     }
-    
-    // Clone the result before returning to avoid lifetime issues
-    let final_result = (*result.borrow()).clone();
-    final_result
 }
 
 /// Open a save file dialog
@@ -62,15 +47,13 @@ pub fn save_file_dialog(
     title: &str,
     filters: &[(&str, &[&str])],
 ) -> Option<PathBuf> {
-    let dialog = FileChooserDialog::new(
+    let dialog = FileChooserNative::new(
         Some(title),
         Some(parent),
         FileChooserAction::Save,
-        &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+        Some("Save"),
+        Some("Cancel"),
     );
-    
-    // In GTK4, we need to use creation_properties instead of set_do_overwrite_confirmation
-    // For now, we'll just work without that functionality
     
     // Add filters
     for (name, patterns) in filters {
@@ -84,30 +67,14 @@ pub fn save_file_dialog(
         dialog.add_filter(&filter);
     }
     
-    // Set up response handling
-    let result = std::rc::Rc::new(std::cell::RefCell::new(None));
-    let result_clone = result.clone();
+    // Run the dialog
+    let response = dialog.run();
     
-    dialog.connect_response(move |dialog, response| {
-        if response == ResponseType::Accept {
-            *result_clone.borrow_mut() = dialog.file().and_then(|file| file.path());
-        }
-        dialog.close();
-    });
-    
-    // Present the dialog and wait synchronously
-    dialog.set_modal(true);
-    dialog.present();
-    
-    // Wait until response is received
-    while dialog.is_visible() {
-        let ctx = glib::MainContext::default();
-        let _ = ctx.iteration(true);
+    if response == ResponseType::Accept {
+        dialog.file().and_then(|file| file.path())
+    } else {
+        None
     }
-    
-    // Clone the result before returning to avoid lifetime issues
-    let final_result = (*result.borrow()).clone();
-    final_result
 }
 
 /// Format duration as HH:MM:SS

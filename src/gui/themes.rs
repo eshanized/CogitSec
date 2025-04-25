@@ -3,15 +3,19 @@ use gtk::gdk;
 
 /// Initialize application themes
 pub fn initialize_themes() {
-    // Create the CSS provider
+    let display = match gdk::Display::default() {
+        Some(display) => display,
+        None => {
+            log::error!("Could not get default display");
+            return;
+        }
+    };
+
     let provider = gtk::CssProvider::new();
-    
-    // Load the CSS
     provider.load_from_data(include_css().as_str());
     
-    // Add the provider to the default display
-    gtk::style_context_add_provider_for_display(
-        &gdk::Display::default().expect("Could not get default display"),
+    gtk::StyleContext::add_provider_for_display(
+        &display,
         &provider,
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );

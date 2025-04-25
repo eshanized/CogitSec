@@ -245,7 +245,11 @@ impl DashboardPage {
         // Unwrap the Rc to get our page
         match Rc::try_unwrap(page_rc) {
             Ok(page) => page,
-            Err(_) => panic!("Unable to unwrap Rc - this shouldn't happen!"),
+            Err(_) => {
+                log::error!("Unable to unwrap Rc in Dashboard");
+                // Create a new instance as fallback
+                DashboardPage::new(engine.clone())
+            }
         }
     }
     
@@ -583,55 +587,55 @@ impl Dashboard {
         // Set up file chooser for username list
         let username_entry_clone = username_list_entry.clone();
         username_list_button.connect_clicked(move |_| {
-            let file_chooser = gtk::FileChooserDialog::new(
-                Some("Select Username List"),
-                None::<&gtk::Window>,
-                gtk::FileChooserAction::Open,
-                &[
-                    ("Cancel", gtk::ResponseType::Cancel),
-                    ("Open", gtk::ResponseType::Accept),
-                ],
-            );
-            
-            file_chooser.connect_response(clone!(@strong username_entry_clone => move |dialog, response| {
-                if response == gtk::ResponseType::Accept {
-                    if let Some(file) = dialog.file() {
-                        if let Some(path) = file.path() {
-                            username_entry_clone.set_text(&path.to_string_lossy());
+            if let Some(parent) = username_entry_clone.root().and_then(|r| r.downcast::<gtk::Window>().ok()) {
+                let file_chooser = gtk::FileChooserNative::new(
+                    Some("Select Username List"),
+                    Some(&parent),
+                    gtk::FileChooserAction::Open,
+                    Some("Open"),
+                    Some("Cancel"),
+                );
+                
+                let username_entry_ref = username_entry_clone.clone();
+                file_chooser.connect_response(move |dialog, response| {
+                    if response == gtk::ResponseType::Accept {
+                        if let Some(file) = dialog.file() {
+                            if let Some(path) = file.path() {
+                                username_entry_ref.set_text(&path.to_string_lossy());
+                            }
                         }
                     }
-                }
-                dialog.close();
-            }));
-            
-            file_chooser.show();
+                });
+                
+                file_chooser.show();
+            }
         });
         
         // Set up file chooser for password list
         let password_entry_clone = password_list_entry.clone();
         password_list_button.connect_clicked(move |_| {
-            let file_chooser = gtk::FileChooserDialog::new(
-                Some("Select Password List"),
-                None::<&gtk::Window>,
-                gtk::FileChooserAction::Open,
-                &[
-                    ("Cancel", gtk::ResponseType::Cancel),
-                    ("Open", gtk::ResponseType::Accept),
-                ],
-            );
-            
-            file_chooser.connect_response(clone!(@strong password_entry_clone => move |dialog, response| {
-                if response == gtk::ResponseType::Accept {
-                    if let Some(file) = dialog.file() {
-                        if let Some(path) = file.path() {
-                            password_entry_clone.set_text(&path.to_string_lossy());
+            if let Some(parent) = password_entry_clone.root().and_then(|r| r.downcast::<gtk::Window>().ok()) {
+                let file_chooser = gtk::FileChooserNative::new(
+                    Some("Select Password List"),
+                    Some(&parent),
+                    gtk::FileChooserAction::Open,
+                    Some("Open"),
+                    Some("Cancel"),
+                );
+                
+                let password_entry_ref = password_entry_clone.clone();
+                file_chooser.connect_response(move |dialog, response| {
+                    if response == gtk::ResponseType::Accept {
+                        if let Some(file) = dialog.file() {
+                            if let Some(path) = file.path() {
+                                password_entry_ref.set_text(&path.to_string_lossy());
+                            }
                         }
                     }
-                }
-                dialog.close();
-            }));
-            
-            file_chooser.show();
+                });
+                
+                file_chooser.show();
+            }
         });
         
         // Update protocol-specific port
@@ -753,55 +757,49 @@ impl Dashboard {
     
     /// Update progress display
     pub fn update_progress(&self, progress: &AttackProgress) {
+        // Update progress bar
+        let percentage = (progress.progress * 100.0) as i32;
+        self.progress_bar.set_fraction(progress.progress);
+        
         // Update status label
         let status_text = match progress.status {
             AttackStatus::Idle => "Status: Idle",
-            AttackStatus::Running => "Status: Running",
-            AttackStatus::Paused => "Status: Paused",
+            AttackStatus::Running => format!("Status: Running ({percentage}%)"),
+            AttackStatus::Paused => format!("Status: Paused ({percentage}%)"),
             AttackStatus::Completed => "Status: Completed",
-            AttackStatus::Failed => "Status: Failed",
+            AttackStatus::Cancelled => "Status: Cancelled",
+            AttackStatus::Error => "Status: Error",
         };
-        self.status_label.set_text(status_text);
+        self.status_label.set_text(&status_text);
         
-        // Update progress bar
-        if progress.total_attempts > 0 {
-            let fraction = progress.attempts_made as f64 / progress.total_attempts as f64;
-            self.progress_bar.set_fraction(fraction);
-            self.progress_bar.set_text(Some(&format!("{:.1}%", fraction * 100.0)));
-        } else {
-            self.progress_bar.set_fraction(0.0);
-            self.progress_bar.set_text(Some("0%"));
-        }
-        
-        // Get successful results to display
-        if let Ok(engine) = self.engine.lock() {
-            if let Ok(results) = engine.get_attack_results() {
-                let successful_results: Vec<_> = results.iter()
-                    .filter(|r| r.success)
-                    .collect();
+        // Update results if there are new credentials
+        if !progress.credentials.is_empty() {
+            if let Some(buffer) = self.results_view.buffer() {
+                // Get the end of the buffer
+                let mut end_iter = buffer.end_iter();
                 
-                if !successful_results.is_empty() {
-                    // Update text view with successful results
-                    let buffer = self.results_view.buffer().unwrap();
-                    buffer.set_text("");
-                    
-                    let mut iter = buffer.end_iter();
-                    buffer.insert(&mut iter, "Successful credentials:\n\n");
-                    
-                    for result in successful_results {
-                        buffer.insert(
-                            &mut iter, 
-                            &format!(
-                                "Target: {}:{} ({})\nUsername: {}\nPassword: {}\nTimestamp: {}\n\n",
-                                result.target,
-                                result.port,
-                                result.protocol,
-                                result.username,
-                                result.password,
-                                result.timestamp.format("%Y-%m-%d %H:%M:%S")
-                            )
-                        );
+                // Add each credential
+                for credential in &progress.credentials {
+                    // Add newline if buffer is not empty
+                    if buffer.char_count() > 0 {
+                        buffer.insert(&mut end_iter, "\n");
                     }
+                    
+                    // Add credential information
+                    let text = format!("[{}] {}@{}: {}", 
+                        credential.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                        credential.username,
+                        credential.target,
+                        credential.password);
+                        
+                    buffer.insert(&mut end_iter, &text);
+                }
+                
+                // Scroll to the end
+                let mark = buffer.create_mark(None, &buffer.end_iter(), false);
+                if let Some(mark) = mark {
+                    self.results_view.scroll_to_mark(&mark, 0.0, false, 0.0, 1.0);
+                    buffer.delete_mark(&mark);
                 }
             }
         }

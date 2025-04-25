@@ -363,14 +363,14 @@ impl LoginConfigPage {
     /// Handle username list button click
     fn on_username_list_button_clicked(&self) {
         if let Some(parent) = self.root.ancestor(gtk::Window::static_type()) {
-            let parent = parent.downcast::<gtk::Window>().unwrap();
-            
-            if let Some(path) = crate::gui::utils::open_file_chooser_dialog(
-                &parent,
-                "Select Username List",
-                &[("Text Files", &["*.txt"]), ("All Files", &["*"])],
-            ) {
-                self.username_list_entry.set_text(&path.to_string_lossy());
+            if let Ok(parent) = parent.downcast::<gtk::Window>() {
+                if let Some(path) = crate::gui::utils::open_file_chooser_dialog(
+                    &parent,
+                    "Select Username List",
+                    &[("Text Files", &["*.txt"]), ("All Files", &["*"])],
+                ) {
+                    self.username_list_entry.set_text(&path.to_string_lossy());
+                }
             }
         }
     }
@@ -378,14 +378,14 @@ impl LoginConfigPage {
     /// Handle password list button click
     fn on_password_list_button_clicked(&self) {
         if let Some(parent) = self.root.ancestor(gtk::Window::static_type()) {
-            let parent = parent.downcast::<gtk::Window>().unwrap();
-            
-            if let Some(path) = crate::gui::utils::open_file_chooser_dialog(
-                &parent,
-                "Select Password List",
-                &[("Text Files", &["*.txt"]), ("All Files", &["*"])],
-            ) {
-                self.password_list_entry.set_text(&path.to_string_lossy());
+            if let Ok(parent) = parent.downcast::<gtk::Window>() {
+                if let Some(path) = crate::gui::utils::open_file_chooser_dialog(
+                    &parent,
+                    "Select Password List",
+                    &[("Text Files", &["*.txt"]), ("All Files", &["*"])],
+                ) {
+                    self.password_list_entry.set_text(&path.to_string_lossy());
+                }
             }
         }
     }

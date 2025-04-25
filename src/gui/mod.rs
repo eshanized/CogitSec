@@ -16,7 +16,9 @@ use std::sync::{Arc, Mutex};
 
 /// Runs the GTK application
 pub fn run_application(engine: Engine) -> Result<()> {
-    gtk::init().expect("Failed to initialize GTK");
+    if let Err(err) = gtk::init() {
+        return Err(anyhow::anyhow!("Failed to initialize GTK: {}", err));
+    }
     
     // Initialize themes
     themes::initialize_themes();
