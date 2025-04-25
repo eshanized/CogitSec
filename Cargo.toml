@@ -1,0 +1,45 @@
+[package]
+name = "cogitsec"
+version = "0.1.0"
+edition = "2021"
+authors = ["CogitSec Team"]
+description = "Advanced Network Login Cracker with Rust GTK GUI"
+
+[dependencies]
+# GUI dependencies
+gtk = { version = "0.9.6", package = "gtk4" }
+gtk-macros = "0.3.0"
+
+# Core dependencies
+tokio = { version = "1.28.0", features = ["full"] }
+futures = "0.3.28"
+thiserror = "1.0.40"
+anyhow = "1.0.71"
+log = "0.4.17"
+env_logger = "0.10.0"
+clap = { version = "4.3.0", features = ["derive"] }
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
+chrono = { version = "0.4.24", features = ["serde"] }
+rand = "0.8.5"
+async-trait = "0.1.73"
+
+# Networking and crypto
+ssh2 = "0.9.4"
+reqwest = { version = "0.11.18", features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+mysql = "24.0.0"
+postgres = "0.19.5"
+ftp = "3.0.1"
+rustls = "0.21.1"
+lettre = "0.10.4"
+md-5 = "0.10.5"
+sha2 = "0.10.6"
+base64 = "0.21.0"
+
+[build-dependencies]
+glib-build-tools = "0.16.0"
+
+[[bin]]
+name = "cogitsec"
+path = "src/main.rs" 

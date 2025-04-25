@@ -1,0 +1,51 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# User-specific files
+*.rs.user
+*.rs.user.*
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.rlib
+*.rmeta
+*.d
+
+# Log files
+*.log
+
+# Local wordlists and sensitive data
+wordlists/
+data/
+sessions/
+credentials.json
+*.credentials 
