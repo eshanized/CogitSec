@@ -6,6 +6,11 @@ use gtk::{
 use std::rc::Rc;
 
 use crate::core::Engine;
+use crate::core::protocols::Protocol;
+use crate::core::attack::AttackConfig;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::cell::RefCell;
 
 /// Login configuration page
 pub struct LoginConfigPage {
@@ -390,4 +395,408 @@ impl LoginConfigPage {
         // Create attack configuration from the form
         // TODO: Implement actual configuration saving
     }
+}
+
+/// Login configuration view
+#[derive(Clone)]
+pub struct LoginConfigView {
+    /// Engine instance
+    engine: Arc<Mutex<Engine>>,
+    
+    /// Main widget
+    widget: gtk::Box,
+    
+    /// Protocol-specific option widgets
+    protocol_options: HashMap<Protocol, gtk::Widget>,
+    
+    /// Current protocol
+    current_protocol: Rc<RefCell<Protocol>>,
+    
+    /// Protocol stack
+    protocol_stack: gtk::Stack,
+    
+    /// Timeout adjustment
+    timeout_adjustment: gtk::Adjustment,
+}
+
+impl LoginConfigView {
+    /// Create a new login configuration view
+    pub fn new(engine: Arc<Mutex<Engine>>) -> Self {
+        // Create main container
+        let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        widget.set_margin_start(10);
+        widget.set_margin_end(10);
+        widget.set_margin_top(10);
+        widget.set_margin_bottom(10);
+        
+        // Create header
+        let header_label = gtk::Label::new(Some("Connection Configuration"));
+        header_label.get_style_context().add_class("title-1");
+        widget.append(&header_label);
+        
+        // Create protocol selector
+        let protocol_frame = gtk::Frame::new(Some("Protocol"));
+        let protocol_box = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        protocol_box.set_margin_start(10);
+        protocol_box.set_margin_end(10);
+        protocol_box.set_margin_top(10);
+        protocol_box.set_margin_bottom(10);
+        protocol_frame.set_child(Some(&protocol_box));
+        
+        let protocol_combo = gtk::ComboBoxText::new();
+        for protocol in &[
+            Protocol::SSH, 
+            Protocol::FTP, 
+            Protocol::HTTP, 
+            Protocol::HTTPS, 
+            Protocol::SMTP, 
+            Protocol::SMTPS, 
+            Protocol::MySQL, 
+            Protocol::PostgreSQL, 
+            Protocol::SMB
+        ] {
+            protocol_combo.append(Some(&format!("{:?}", protocol)), &format!("{}", protocol));
+        }
+        protocol_combo.set_active(Some(0));
+        protocol_box.append(&protocol_combo);
+        
+        // Create protocol-specific options stack
+        let protocol_stack = gtk::Stack::new();
+        
+        // Create timeout selector
+        let timeout_frame = gtk::Frame::new(Some("Connection Timeout"));
+        let timeout_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        timeout_box.set_margin_start(10);
+        timeout_box.set_margin_end(10);
+        timeout_box.set_margin_top(10);
+        timeout_box.set_margin_bottom(10);
+        
+        let timeout_label = gtk::Label::new(Some("Timeout (seconds):"));
+        timeout_box.append(&timeout_label);
+        
+        let timeout_adjustment = gtk::Adjustment::new(10.0, 1.0, 60.0, 1.0, 5.0, 0.0);
+        let timeout_spin = gtk::SpinButton::new(Some(&timeout_adjustment), 1.0, 0);
+        timeout_box.append(&timeout_spin);
+        
+        timeout_frame.set_child(Some(&timeout_box));
+        
+        // Create protocol option widgets
+        let mut protocol_options = HashMap::new();
+        
+        // SSH options
+        let ssh_options = create_ssh_options();
+        protocol_stack.add_titled(&ssh_options, Some("SSH"), "SSH");
+        protocol_options.insert(Protocol::SSH, ssh_options);
+        
+        // FTP options
+        let ftp_options = create_ftp_options();
+        protocol_stack.add_titled(&ftp_options, Some("FTP"), "FTP");
+        protocol_options.insert(Protocol::FTP, ftp_options);
+        
+        // HTTP options
+        let http_options = create_http_options();
+        protocol_stack.add_titled(&http_options, Some("HTTP"), "HTTP");
+        protocol_options.insert(Protocol::HTTP, http_options.clone());
+        protocol_options.insert(Protocol::HTTPS, http_options);
+        
+        // SMTP options
+        let smtp_options = create_smtp_options();
+        protocol_stack.add_titled(&smtp_options, Some("SMTP"), "SMTP");
+        protocol_options.insert(Protocol::SMTP, smtp_options.clone());
+        protocol_options.insert(Protocol::SMTPS, smtp_options);
+        
+        // MySQL options
+        let mysql_options = create_mysql_options();
+        protocol_stack.add_titled(&mysql_options, Some("MySQL"), "MySQL");
+        protocol_options.insert(Protocol::MySQL, mysql_options);
+        
+        // PostgreSQL options
+        let pg_options = create_postgres_options();
+        protocol_stack.add_titled(&pg_options, Some("PostgreSQL"), "PostgreSQL");
+        protocol_options.insert(Protocol::PostgreSQL, pg_options);
+        
+        // SMB options
+        let smb_options = create_smb_options();
+        protocol_stack.add_titled(&smb_options, Some("SMB"), "SMB");
+        protocol_options.insert(Protocol::SMB, smb_options);
+        
+        // Add options frame
+        let options_frame = gtk::Frame::new(Some("Protocol-specific Options"));
+        options_frame.set_child(Some(&protocol_stack));
+        
+        // Add frames to main widget
+        widget.append(&protocol_frame);
+        widget.append(&options_frame);
+        widget.append(&timeout_frame);
+        
+        // Track current protocol
+        let current_protocol = Rc::new(RefCell::new(Protocol::SSH));
+        
+        // Connect protocol change handler
+        let cp = current_protocol.clone();
+        let ps = protocol_stack.clone();
+        protocol_combo.connect_changed(move |combo| {
+            if let Some(active_id) = combo.active_id() {
+                if let Ok(protocol) = active_id.parse::<String>().map(|s| match s.as_str() {
+                    "SSH" => Protocol::SSH,
+                    "FTP" => Protocol::FTP,
+                    "HTTP" => Protocol::HTTP,
+                    "HTTPS" => Protocol::HTTPS,
+                    "SMTP" => Protocol::SMTP,
+                    "SMTPS" => Protocol::SMTPS,
+                    "MySQL" => Protocol::MySQL,
+                    "PostgreSQL" => Protocol::PostgreSQL,
+                    "SMB" => Protocol::SMB,
+                    _ => Protocol::SSH,
+                }) {
+                    *cp.borrow_mut() = protocol;
+                    
+                    // Show the appropriate options panel
+                    match protocol {
+                        Protocol::SSH => ps.set_visible_child_name("SSH"),
+                        Protocol::FTP => ps.set_visible_child_name("FTP"),
+                        Protocol::HTTP | Protocol::HTTPS => ps.set_visible_child_name("HTTP"),
+                        Protocol::SMTP | Protocol::SMTPS => ps.set_visible_child_name("SMTP"),
+                        Protocol::MySQL => ps.set_visible_child_name("MySQL"),
+                        Protocol::PostgreSQL => ps.set_visible_child_name("PostgreSQL"),
+                        Protocol::SMB => ps.set_visible_child_name("SMB"),
+                    }
+                }
+            }
+        });
+        
+        Self {
+            engine,
+            widget,
+            protocol_options,
+            current_protocol,
+            protocol_stack,
+            timeout_adjustment,
+        }
+    }
+    
+    /// Get the main widget
+    pub fn widget(&self) -> &gtk::Box {
+        &self.widget
+    }
+    
+    /// Get connection options as a HashMap
+    pub fn get_options(&self) -> HashMap<String, String> {
+        let mut options = HashMap::new();
+        
+        // Get protocol-specific options based on current protocol
+        let protocol = *self.current_protocol.borrow();
+        
+        match protocol {
+            Protocol::SSH => get_ssh_options(&mut options),
+            Protocol::FTP => get_ftp_options(&mut options),
+            Protocol::HTTP | Protocol::HTTPS => get_http_options(&mut options),
+            Protocol::SMTP | Protocol::SMTPS => get_smtp_options(&mut options),
+            Protocol::MySQL => get_mysql_options(&mut options),
+            Protocol::PostgreSQL => get_postgres_options(&mut options),
+            Protocol::SMB => get_smb_options(&mut options),
+        }
+        
+        options
+    }
+}
+
+/// Create SSH options widget
+fn create_ssh_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let auth_label = gtk::Label::new(Some("Authentication Method:"));
+    auth_label.set_halign(gtk::Align::Start);
+    widget.append(&auth_label);
+    
+    let auth_combo = gtk::ComboBoxText::new();
+    auth_combo.append(Some("password"), "Password");
+    auth_combo.append(Some("keyboard-interactive"), "Keyboard Interactive");
+    auth_combo.set_active(Some(0));
+    auth_combo.set_name("ssh_auth_method");
+    widget.append(&auth_combo);
+    
+    widget
+}
+
+/// Create FTP options widget
+fn create_ftp_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let passive_check = gtk::CheckButton::with_label("Use Passive Mode");
+    passive_check.set_active(true);
+    passive_check.set_name("ftp_passive");
+    widget.append(&passive_check);
+    
+    widget
+}
+
+/// Create HTTP options widget
+fn create_http_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let auth_label = gtk::Label::new(Some("Authentication Type:"));
+    auth_label.set_halign(gtk::Align::Start);
+    widget.append(&auth_label);
+    
+    let auth_combo = gtk::ComboBoxText::new();
+    auth_combo.append(Some("basic"), "Basic");
+    auth_combo.append(Some("digest"), "Digest");
+    auth_combo.append(Some("form"), "Form-based");
+    auth_combo.set_active(Some(0));
+    auth_combo.set_name("http_auth_type");
+    widget.append(&auth_combo);
+    
+    let url_label = gtk::Label::new(Some("Login URL:"));
+    url_label.set_halign(gtk::Align::Start);
+    widget.append(&url_label);
+    
+    let url_entry = gtk::Entry::new();
+    url_entry.set_placeholder_text(Some("/login"));
+    url_entry.set_name("http_login_url");
+    widget.append(&url_entry);
+    
+    widget
+}
+
+/// Create SMTP options widget
+fn create_smtp_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let auth_label = gtk::Label::new(Some("Authentication Method:"));
+    auth_label.set_halign(gtk::Align::Start);
+    widget.append(&auth_label);
+    
+    let auth_combo = gtk::ComboBoxText::new();
+    auth_combo.append(Some("plain"), "PLAIN");
+    auth_combo.append(Some("login"), "LOGIN");
+    auth_combo.append(Some("cram-md5"), "CRAM-MD5");
+    auth_combo.set_active(Some(0));
+    auth_combo.set_name("smtp_auth_method");
+    widget.append(&auth_combo);
+    
+    widget
+}
+
+/// Create MySQL options widget
+fn create_mysql_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let db_label = gtk::Label::new(Some("Database Name:"));
+    db_label.set_halign(gtk::Align::Start);
+    widget.append(&db_label);
+    
+    let db_entry = gtk::Entry::new();
+    db_entry.set_placeholder_text(Some("mysql"));
+    db_entry.set_name("mysql_database");
+    widget.append(&db_entry);
+    
+    widget
+}
+
+/// Create PostgreSQL options widget
+fn create_postgres_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let db_label = gtk::Label::new(Some("Database Name:"));
+    db_label.set_halign(gtk::Align::Start);
+    widget.append(&db_label);
+    
+    let db_entry = gtk::Entry::new();
+    db_entry.set_placeholder_text(Some("postgres"));
+    db_entry.set_name("pg_database");
+    widget.append(&db_entry);
+    
+    widget
+}
+
+/// Create SMB options widget
+fn create_smb_options() -> gtk::Box {
+    let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    widget.set_margin_start(10);
+    widget.set_margin_end(10);
+    widget.set_margin_top(10);
+    widget.set_margin_bottom(10);
+    
+    let domain_label = gtk::Label::new(Some("Domain:"));
+    domain_label.set_halign(gtk::Align::Start);
+    widget.append(&domain_label);
+    
+    let domain_entry = gtk::Entry::new();
+    domain_entry.set_placeholder_text(Some("WORKGROUP"));
+    domain_entry.set_name("smb_domain");
+    widget.append(&domain_entry);
+    
+    let share_label = gtk::Label::new(Some("Share:"));
+    share_label.set_halign(gtk::Align::Start);
+    widget.append(&share_label);
+    
+    let share_entry = gtk::Entry::new();
+    share_entry.set_placeholder_text(Some("C$"));
+    share_entry.set_name("smb_share");
+    widget.append(&share_entry);
+    
+    widget
+}
+
+/// Get SSH options from the widget
+fn get_ssh_options(options: &mut HashMap<String, String>) {
+    // This would normally extract values from the widgets
+    options.insert("auth_method".to_string(), "password".to_string());
+}
+
+/// Get FTP options from the widget
+fn get_ftp_options(options: &mut HashMap<String, String>) {
+    options.insert("passive".to_string(), "true".to_string());
+}
+
+/// Get HTTP options from the widget
+fn get_http_options(options: &mut HashMap<String, String>) {
+    options.insert("auth_type".to_string(), "basic".to_string());
+    options.insert("login_url".to_string(), "/login".to_string());
+}
+
+/// Get SMTP options from the widget
+fn get_smtp_options(options: &mut HashMap<String, String>) {
+    options.insert("auth_method".to_string(), "plain".to_string());
+}
+
+/// Get MySQL options from the widget
+fn get_mysql_options(options: &mut HashMap<String, String>) {
+    options.insert("database".to_string(), "mysql".to_string());
+}
+
+/// Get PostgreSQL options from the widget
+fn get_postgres_options(options: &mut HashMap<String, String>) {
+    options.insert("database".to_string(), "postgres".to_string());
+}
+
+/// Get SMB options from the widget
+fn get_smb_options(options: &mut HashMap<String, String>) {
+    options.insert("domain".to_string(), "WORKGROUP".to_string());
+    options.insert("share".to_string(), "C$".to_string());
 } 

@@ -11,15 +11,21 @@ mod log_viewer;
 use anyhow::Result;
 use app::Application;
 use gtk::prelude::*;
+use crate::core::Engine;
+use std::sync::{Arc, Mutex};
 
 /// Runs the GTK application
-pub fn run_application() -> Result<()> {
+pub fn run_application(engine: Engine) -> Result<()> {
     gtk::init().expect("Failed to initialize GTK");
     
     // Initialize themes
     themes::initialize_themes();
     
-    let app = Application::new();
+    // Create shared engine
+    let engine = Arc::new(Mutex::new(engine));
+    
+    // Create application
+    let app = Application::new(engine);
     let app_id = "org.cogitsec.CogitSec";
     let application = gtk::Application::new(Some(app_id), Default::default());
     

@@ -4,156 +4,230 @@ use gtk::{
     TextView, ToggleButton
 };
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
 
 use crate::core::Engine;
 use crate::core::logger::{LogEntry, LogLevel};
 
-/// Widget for viewing and filtering log messages
+/// Log viewer widget
+#[derive(Clone)]
 pub struct LogViewer {
-    /// Root widget
-    root: GtkBox,
+    /// Engine instance
+    engine: Arc<Mutex<Engine>>,
     
-    /// Engine reference
-    engine: Rc<Engine>,
+    /// Main widget
+    widget: gtk::Box,
     
-    /// Text buffer for logs
-    log_buffer: TextBuffer,
+    /// Log buffer
+    buffer: gtk::TextBuffer,
     
-    /// Filter buttons by log level
-    info_filter: ToggleButton,
-    warning_filter: ToggleButton,
-    error_filter: ToggleButton,
-    debug_filter: ToggleButton,
+    /// Auto-scroll switch
+    auto_scroll: Rc<RefCell<bool>>,
+    
+    /// Only show errors switch
+    only_errors: Rc<RefCell<bool>>,
+    
+    /// Last seen log ID
+    last_seen_id: Rc<RefCell<usize>>,
 }
 
 impl LogViewer {
-    /// Create a new log viewer widget
-    pub fn new(engine: Rc<Engine>) -> Self {
-        let root = GtkBox::new(Orientation::Vertical, 10);
-        root.set_margin_start(10);
-        root.set_margin_end(10);
-        root.set_margin_top(10);
-        root.set_margin_bottom(10);
+    /// Create a new log viewer
+    pub fn new(engine: Arc<Mutex<Engine>>) -> Self {
+        // Create main widget
+        let widget = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        widget.set_margin_start(10);
+        widget.set_margin_end(10);
+        widget.set_margin_top(10);
+        widget.set_margin_bottom(10);
         
-        // Header
-        let header = Label::new(Some("Log Messages"));
-        header.set_halign(gtk::Align::Start);
-        header.add_css_class("title-3");
-        root.append(&header);
+        // Create header
+        let header_label = gtk::Label::new(Some("Application Logs"));
+        header_label.get_style_context().add_class("title-1");
+        widget.append(&header_label);
         
-        // Filters
-        let filter_box = GtkBox::new(Orientation::Horizontal, 5);
+        // Create log view
+        let log_frame = gtk::Frame::new(Some("Logs"));
+        let log_box = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        log_box.set_margin_start(10);
+        log_box.set_margin_end(10);
+        log_box.set_margin_top(10);
+        log_box.set_margin_bottom(10);
         
-        let filter_label = Label::new(Some("Show:"));
-        filter_box.append(&filter_label);
+        // Create text view
+        let scroll = gtk::ScrolledWindow::new();
+        scroll.set_hexpand(true);
+        scroll.set_vexpand(true);
         
-        let info_filter = ToggleButton::with_label("Info");
-        info_filter.set_active(true);
-        
-        let warning_filter = ToggleButton::with_label("Warning");
-        warning_filter.set_active(true);
-        
-        let error_filter = ToggleButton::with_label("Error");
-        error_filter.set_active(true);
-        
-        let debug_filter = ToggleButton::with_label("Debug");
-        debug_filter.set_active(false);
-        
-        filter_box.append(&info_filter);
-        filter_box.append(&warning_filter);
-        filter_box.append(&error_filter);
-        filter_box.append(&debug_filter);
-        
-        // Add spacer
-        let spacer = GtkBox::new(Orientation::Horizontal, 0);
-        spacer.set_hexpand(true);
-        filter_box.append(&spacer);
-        
-        // Clear button
-        let clear_button = Button::with_label("Clear");
-        filter_box.append(&clear_button);
-        
-        root.append(&filter_box);
-        
-        // Log text view
-        let log_buffer = TextBuffer::new(None);
-        let text_view = TextView::with_buffer(&log_buffer);
+        let text_view = gtk::TextView::new();
         text_view.set_editable(false);
         text_view.set_cursor_visible(false);
-        text_view.set_wrap_mode(gtk::WrapMode::Word);
         text_view.set_monospace(true);
+        text_view.set_wrap_mode(gtk::WrapMode::WordChar);
+        scroll.set_child(Some(&text_view));
         
-        let scrolled_window = ScrolledWindow::new();
-        scrolled_window.set_policy(PolicyType::Automatic, PolicyType::Automatic);
-        scrolled_window.set_child(Some(&text_view));
-        scrolled_window.set_vexpand(true);
+        let buffer = text_view.buffer().unwrap();
         
-        root.append(&scrolled_window);
+        // Create tag for errors
+        let error_tag = buffer.create_tag(Some("error"), &[("foreground", &"#ff0000")]);
         
-        // Connect clear button
-        let log_buffer_clone = log_buffer.clone();
-        clear_button.connect_clicked(move |_| {
-            log_buffer_clone.set_text("");
+        // Create tag for info
+        let info_tag = buffer.create_tag(Some("info"), &[("foreground", &"#000000")]);
+        
+        // Create tag for warnings
+        let warning_tag = buffer.create_tag(Some("warning"), &[("foreground", &"#ffaa00")]);
+        
+        // Create tag for debug
+        let debug_tag = buffer.create_tag(Some("debug"), &[("foreground", &"#999999")]);
+        
+        // Create tag for timestamps
+        let timestamp_tag = buffer.create_tag(Some("timestamp"), &[("weight", &pango::Weight::Bold.to_value())]);
+        
+        // Create controls
+        let controls_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        
+        let clear_button = gtk::Button::with_label("Clear");
+        controls_box.append(&clear_button);
+        
+        let auto_scroll_check = gtk::CheckButton::with_label("Auto-scroll");
+        auto_scroll_check.set_active(true);
+        controls_box.append(&auto_scroll_check);
+        
+        let only_errors_check = gtk::CheckButton::with_label("Show only errors");
+        only_errors_check.set_active(false);
+        controls_box.append(&only_errors_check);
+        
+        // Add to log box
+        log_box.append(&scroll);
+        log_box.append(&controls_box);
+        
+        // Add to frame
+        log_frame.set_child(Some(&log_box));
+        
+        // Add to main widget
+        widget.append(&log_frame);
+        
+        // State variables
+        let auto_scroll = Rc::new(RefCell::new(true));
+        let only_errors = Rc::new(RefCell::new(false));
+        let last_seen_id = Rc::new(RefCell::new(0usize));
+        
+        // Create instance
+        let instance = Self {
+            engine,
+            widget,
+            buffer,
+            auto_scroll,
+            only_errors,
+            last_seen_id,
+        };
+        
+        // Set up auto-scroll check
+        let auto_scroll_ref = instance.auto_scroll.clone();
+        auto_scroll_check.connect_toggled(move |check| {
+            *auto_scroll_ref.borrow_mut() = check.is_active();
         });
         
-        Self {
-            root,
-            engine,
-            log_buffer,
-            info_filter,
-            warning_filter,
-            error_filter,
-            debug_filter,
+        // Set up only-errors check
+        let only_errors_ref = instance.only_errors.clone();
+        let instance_refresh = instance.clone();
+        only_errors_check.connect_toggled(move |check| {
+            *only_errors_ref.borrow_mut() = check.is_active();
+            instance_refresh.refresh_logs();
+        });
+        
+        // Set up clear button
+        let instance_clear = instance.clone();
+        clear_button.connect_clicked(move |_| {
+            instance_clear.buffer.set_text("");
+            *instance_clear.last_seen_id.borrow_mut() = 0;
+        });
+        
+        // Initial refresh
+        instance.refresh_logs();
+        
+        instance
+    }
+    
+    /// Get the main widget
+    pub fn widget(&self) -> &gtk::Box {
+        &self.widget
+    }
+    
+    /// Refresh the logs display
+    pub fn refresh_logs(&self) {
+        if let Ok(engine) = self.engine.lock() {
+            if let Ok(logger) = engine.logger().lock() {
+                // Get entries
+                let entries = logger.get_entries();
+                
+                // Get only new entries
+                let last_id = *self.last_seen_id.borrow();
+                let new_entries: Vec<&LogEntry> = entries.iter()
+                    .filter(|e| e.id > last_id)
+                    .filter(|e| !*self.only_errors.borrow() || e.level == "ERROR")
+                    .collect();
+                
+                if !new_entries.is_empty() {
+                    // Update the last seen ID
+                    if let Some(last_entry) = new_entries.last() {
+                        *self.last_seen_id.borrow_mut() = last_entry.id;
+                    }
+                    
+                    // Get current end iter
+                    let mut end_iter = self.buffer.end_iter();
+                    
+                    // Append new entries
+                    for entry in new_entries {
+                        // Add a newline if the buffer is not empty
+                        if self.buffer.char_count() > 0 {
+                            self.buffer.insert(&mut end_iter, "\n");
+                        }
+                        
+                        // Add timestamp
+                        let timestamp = entry.timestamp.format("[%Y-%m-%d %H:%M:%S]").to_string();
+                        let timestamp_offset = end_iter.offset();
+                        self.buffer.insert(&mut end_iter, &timestamp);
+                        self.buffer.apply_tag_by_name(
+                            "timestamp",
+                            &self.buffer.iter_at_offset(timestamp_offset),
+                            &end_iter,
+                        );
+                        
+                        // Add level and message
+                        self.buffer.insert(&mut end_iter, &format!(" {} - ", entry.level));
+                        
+                        // Apply tag based on level
+                        let message_offset = end_iter.offset();
+                        self.buffer.insert(&mut end_iter, &entry.message);
+                        
+                        let tag_name = match entry.level.as_str() {
+                            "ERROR" => "error",
+                            "WARNING" => "warning",
+                            "INFO" => "info",
+                            "DEBUG" => "debug",
+                            _ => "info",
+                        };
+                        
+                        self.buffer.apply_tag_by_name(
+                            tag_name,
+                            &self.buffer.iter_at_offset(message_offset),
+                            &end_iter,
+                        );
+                    }
+                    
+                    // Auto-scroll if enabled
+                    if *self.auto_scroll.borrow() {
+                        let scroll_mark = self.buffer.create_mark(None, &end_iter, false).unwrap();
+                        
+                        // Get the parent TextView
+                        if let Some(text_view) = self.buffer.text_view() {
+                            text_view.scroll_to_mark(&scroll_mark, 0.0, true, 0.0, 1.0);
+                        }
+                    }
+                }
+            }
         }
-    }
-    
-    /// Get the root widget
-    pub fn get_widget(&self) -> GtkBox {
-        self.root.clone()
-    }
-    
-    /// Add a log entry to the viewer
-    pub fn add_log_entry(&self, entry: &LogEntry) {
-        // Check if this level should be shown
-        let should_show = match entry.level {
-            LogLevel::Info => self.info_filter.is_active(),
-            LogLevel::Warning => self.warning_filter.is_active(),
-            LogLevel::Error => self.error_filter.is_active(),
-            LogLevel::Debug => self.debug_filter.is_active(),
-        };
-        
-        if !should_show {
-            return;
-        }
-        
-        // Format the log entry
-        let timestamp = entry.timestamp.format("%H:%M:%S").to_string();
-        let level_str = match entry.level {
-            LogLevel::Info => "INFO",
-            LogLevel::Warning => "WARN",
-            LogLevel::Error => "ERROR",
-            LogLevel::Debug => "DEBUG",
-        };
-        
-        let formatted_entry = format!("[{}] [{}] {}\n", timestamp, level_str, entry.message);
-        
-        // Add to buffer
-        let mut end = self.log_buffer.end_iter();
-        self.log_buffer.insert(&mut end, &formatted_entry);
-        
-        // Scroll to the end
-        // This would typically require a reference to the TextView, but since we're using a struct method,
-        // we don't have direct access to it. In a real implementation, you might want to store a reference
-        // to the TextView in the struct or use a signal handler.
-    }
-    
-    /// Update the log viewer with entries from the engine
-    pub fn update(&self) {
-        // In a real implementation, this would fetch new log entries from the engine
-        // and add them to the log viewer
-        // Example:
-        // for entry in self.engine.get_new_log_entries() {
-        //     self.add_log_entry(&entry);
-        // }
     }
 } 
