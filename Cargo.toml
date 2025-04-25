@@ -23,7 +23,7 @@ serde_json = "1.0.96"
 chrono = { version = "0.4.24", features = ["serde"] }
 rand = "0.8.5"
 async-trait = "0.1.73"
-dirs = "5.0.1"
+dirs = "6.0.0"
 
 # Networking and crypto
 ssh2 = "0.9.4"
