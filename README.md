@@ -1,7 +1,7 @@
 # CogitSec 🛡️
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/username/cogitsec/main/assets/logo.png" alt="CogitSec Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/eshanized/cogitsec/master/assets/logo.svg" alt="CogitSec Logo" width="200"/>
   <br>
   <h3>Advanced Security Assessment Platform</h3>
   <p>A modern, high-performance network security assessment toolkit built with Rust</p>
@@ -9,7 +9,7 @@
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![Rust](https://img.shields.io/badge/Rust-1.67+-orange.svg)](https://www.rust-lang.org/)
   [![GTK](https://img.shields.io/badge/GTK-4.8+-green.svg)](https://www.gtk.org/)
-  [![Stars](https://img.shields.io/github/stars/username/cogitsec?style=social)](https://github.com/username/cogitsec/stargazers)
+  [![Stars](https://img.shields.io/github/stars/eshanized/cogitsec?style=social)](https://github.com/eshanized/cogitsec/stargazers)
 </div>
 
 ## 🌟 Overview
@@ -17,7 +17,7 @@
 CogitSec is a comprehensive security assessment platform designed for security professionals, penetration testers, and system administrators. Entirely built in Rust with a GTK-based graphical interface, CogitSec combines the safety and performance benefits of Rust with a modern, intuitive UI to provide a powerful tool for network security testing.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/username/cogitsec/main/assets/dashboard-screenshot.png" alt="CogitSec Dashboard" width="800"/>
+  <img src="https://raw.githubusercontent.com/eshanized/cogitsec/master/assets/dashboard-screenshot.svg" alt="CogitSec Dashboard" width="800"/>
 </div>
 
 ## ✨ Key Features
@@ -82,7 +82,7 @@ CogitSec
 
 ```bash
 # Clone the repository
-git clone https://github.com/username/cogitsec.git
+git clone https://github.com/eshanized/cogitsec.git
 cd cogitsec
 
 # Build the application
@@ -94,7 +94,7 @@ cargo run --release
 
 #### Pre-built Binaries
 
-Download the latest release for your platform from the [Releases](https://github.com/username/cogitsec/releases) page.
+Download the latest release for your platform from the [Releases](https://github.com/eshanized/cogitsec/releases) page.
 
 ## 📖 Usage Guide
 
