@@ -186,14 +186,27 @@ impl ProtocolHandler for FTPHandler {
     ) -> Result<Vec<VulnerabilityResult>> {
         let target = target.to_string();
         let credentials_clone = credentials.cloned();
+        let handler = Self::new(); // Create a new handler for the task
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<VulnerabilityResult>> {
             let mut vulnerabilities = Vec::new();
             
-            // Check FTP banner for information disclosure
-            if let Ok(banner) = self.get_server_banner(&target, port) {
-                let banner = banner.trim();
-                
+            // Check for anonymous login
+            if let Ok(anonymous_allowed) = handler.check_anonymous_login(&target, port) {
+                if anonymous_allowed {
+                    vulnerabilities.push(VulnerabilityResult {
+                        id: "FTP-ANONYMOUS-LOGIN".to_string(),
+                        severity: VulnerabilitySeverity::High,
+                        description: "Anonymous FTP login is allowed".to_string(),
+                        is_vulnerable: true,
+                        details: Some("The FTP server allows anonymous access without authentication".to_string()),
+                        remediation: Some("Disable anonymous FTP login in server configuration".to_string()),
+                    });
+                }
+            }
+            
+            // Extract information from banner
+            if let Ok(banner) = handler.get_server_banner(&target, port) {
                 // Check if banner reveals version information
                 if banner.contains("FTP") && 
                    (banner.contains("v") || banner.contains("version") || banner.contains(".")) {
@@ -202,55 +215,74 @@ impl ProtocolHandler for FTPHandler {
                         severity: VulnerabilitySeverity::Low,
                         description: "FTP banner reveals version information".to_string(),
                         is_vulnerable: true,
-                        details: Some(format!("Banner: {}", banner)),
-                        remediation: Some("Configure the FTP server to use a generic banner that doesn't reveal version information".to_string()),
+                        details: Some(format!("Banner: {}", banner.trim())),
+                        remediation: Some("Configure FTP server to use a generic banner".to_string()),
                     });
                 }
-            }
-            
-            // Check for anonymous access
-            if let Ok(anonymous_allowed) = self.check_anonymous_login(&target, port) {
-                if anonymous_allowed {
+                
+                // Check for known vulnerable FTP server versions
+                if banner.contains("wu-ftpd") && 
+                  (banner.contains("2.6.0") || banner.contains("2.6.1")) {
                     vulnerabilities.push(VulnerabilityResult {
-                        id: "FTP-ANONYMOUS-ACCESS".to_string(),
-                        severity: VulnerabilitySeverity::High,
-                        description: "FTP server allows anonymous access".to_string(),
+                        id: "FTP-VULNERABLE-VERSION".to_string(),
+                        severity: VulnerabilitySeverity::Critical,
+                        description: "Vulnerable FTP server version detected".to_string(),
                         is_vulnerable: true,
-                        details: Some("Anonymous FTP access is enabled, which may expose sensitive files".to_string()),
-                        remediation: Some("Disable anonymous FTP access unless specifically required".to_string()),
+                        details: Some(format!("Detected vulnerable wu-ftpd version: {}", banner.trim())),
+                        remediation: Some("Update to the latest FTP server version".to_string()),
+                    });
+                }
+                
+                // Check for vsftpd backdoor version
+                if banner.contains("vsftpd 2.3.4") {
+                    vulnerabilities.push(VulnerabilityResult {
+                        id: "FTP-VSFTPD-BACKDOOR".to_string(),
+                        severity: VulnerabilitySeverity::Critical,
+                        description: "Potentially backdoored vsftpd version detected".to_string(),
+                        is_vulnerable: true,
+                        details: Some("vsftpd 2.3.4 may contain a backdoor that allows remote access".to_string()),
+                        remediation: Some("Update to the latest vsftpd version immediately".to_string()),
                     });
                 }
             }
             
-            // Check if FTP is running in secure mode
+            // Check if TLS/SSL is supported
             if !use_ssl {
-                if let Ok(secure_supported) = self.check_secure_mode(&target, port) {
-                    if !secure_supported {
+                if let Ok(supports_tls) = handler.check_secure_mode(&target, port) {
+                    if !supports_tls {
                         vulnerabilities.push(VulnerabilityResult {
                             id: "FTP-CLEARTEXT".to_string(),
                             severity: VulnerabilitySeverity::High,
-                            description: "FTP server does not support secure connections".to_string(),
+                            description: "FTP server does not support encryption".to_string(),
                             is_vulnerable: true,
                             details: Some("Credentials and data are transmitted in cleartext".to_string()),
-                            remediation: Some("Configure the FTP server to use FTPS (FTP over TLS/SSL)".to_string()),
+                            remediation: Some("Enable FTPS (FTP over SSL/TLS) on the server".to_string()),
                         });
                     }
                 }
             }
             
-            // If credentials were provided, check directory listing
+            // Try to authenticate with provided credentials and check permissions
             if let Some(creds) = &credentials_clone {
-                if let Ok(listing_allowed) = self.check_directory_listing(&target, port, &creds.username, &creds.password) {
-                    if listing_allowed {
-                        // Information only, not a vulnerability
-                        vulnerabilities.push(VulnerabilityResult {
-                            id: "FTP-DIRECTORY-LISTING".to_string(),
-                            severity: VulnerabilitySeverity::Info,
-                            description: "FTP server allows directory listing".to_string(),
-                            is_vulnerable: false,
-                            details: Some("Directory listing is allowed for the authenticated user".to_string()),
-                            remediation: None,
-                        });
+                if let Ok(conn_str) = ftp::FtpStream::connect(format!("{}:{}", target, port)) {
+                    if let Ok(mut stream) = conn_str {
+                        if stream.login(&creds.username, &creds.password).is_ok() {
+                            // Check if we can write files
+                            let test_dir = format!("test_dir_{}", Utc::now().timestamp());
+                            if stream.mkdir(&test_dir).is_ok() {
+                                vulnerabilities.push(VulnerabilityResult {
+                                    id: "FTP-WRITE-ACCESS".to_string(),
+                                    severity: VulnerabilitySeverity::Medium,
+                                    description: "FTP user has write access".to_string(),
+                                    is_vulnerable: true,
+                                    details: Some(format!("User {} can create directories", creds.username)),
+                                    remediation: Some("Restrict FTP permissions to read-only if not required".to_string()),
+                                });
+                                
+                                // Clean up by removing the test directory
+                                let _ = stream.rmdir(&test_dir);
+                            }
+                        }
                     }
                 }
             }
@@ -273,44 +305,23 @@ impl ProtocolHandler for FTPHandler {
     ) -> Result<HashMap<String, bool>> {
         let target = target.to_string();
         let credentials_clone = credentials.cloned();
+        let handler = Self::new(); // Create a new handler for the task
+        let use_ssl_clone = use_ssl;
         
         let result = tokio::task::spawn_blocking(move || -> Result<HashMap<String, bool>> {
             let mut compliance_results = HashMap::new();
             
-            // Check if anonymous access is allowed
-            let anonymous_allowed = self.check_anonymous_login(&target, port)?;
+            // Check for anonymous login
+            if let Ok(anonymous_allowed) = handler.check_anonymous_login(&target, port) {
+                // For all standards, anonymous logins are a compliance issue
+                compliance_results.insert("No-Anonymous-Access".to_string(), !anonymous_allowed);
+            }
             
-            // Check if secure mode is supported
-            let secure_supported = self.check_secure_mode(&target, port)?;
-            
-            match standard {
-                ComplianceStandard::PCI_DSS => {
-                    // PCI DSS Requirement 2.2.2: Enable only necessary services
-                    compliance_results.insert("PCI-DSS-Req-2.2.2".to_string(), !anonymous_allowed);
-                    
-                    // PCI DSS Requirement 4.1: Use strong cryptography and security protocols
-                    compliance_results.insert("PCI-DSS-Req-4.1".to_string(), use_ssl || secure_supported);
-                    
-                    // PCI DSS Requirement 8.2: Proper user authentication
-                    compliance_results.insert("PCI-DSS-Req-8.2".to_string(), !anonymous_allowed);
-                },
-                ComplianceStandard::NIST_CSF => {
-                    // NIST Cybersecurity Framework - Protect (PR)
-                    compliance_results.insert("PR.AC-1-Access-Control".to_string(), !anonymous_allowed);
-                    compliance_results.insert("PR.DS-2-Data-In-Transit".to_string(), use_ssl || secure_supported);
-                },
-                ComplianceStandard::ISO27001 => {
-                    // ISO 27001 - A.9 Access Control
-                    compliance_results.insert("A.9.1.2-Access-to-Networks".to_string(), !anonymous_allowed);
-                    
-                    // ISO 27001 - A.10 Cryptography
-                    compliance_results.insert("A.10.1.1-Cryptographic-Controls".to_string(), use_ssl || secure_supported);
-                },
-                _ => {
-                    // Generic security best practices
-                    compliance_results.insert("No-Anonymous-Access".to_string(), !anonymous_allowed);
-                    compliance_results.insert("Secure-Transport".to_string(), use_ssl || secure_supported);
-                }
+            // Check for TLS/SSL support
+            if let Ok(supports_tls) = handler.check_secure_mode(&target, port) {
+                // For most standards, encryption in transit is required
+                compliance_results.insert("Encryption-In-Transit".to_string(), 
+                                         supports_tls || use_ssl_clone);
             }
             
             Ok(compliance_results)

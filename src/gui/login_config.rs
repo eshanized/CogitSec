@@ -455,7 +455,7 @@ impl LoginConfigView {
             Protocol::PostgreSQL, 
             Protocol::SMB
         ] {
-            protocol_combo.append(Some(&format!("{:?}", protocol)), &format!("{}", protocol));
+            protocol_combo.append_text(&format!("{}", protocol));
         }
         protocol_combo.set_active(Some(0));
         protocol_box.append(&protocol_combo);
@@ -614,10 +614,9 @@ fn create_ssh_options() -> gtk::Box {
     widget.append(&auth_label);
     
     let auth_combo = gtk::ComboBoxText::new();
-    auth_combo.append(Some("password"), "Password");
-    auth_combo.append(Some("keyboard-interactive"), "Keyboard Interactive");
+    auth_combo.append_text("password");
+    auth_combo.append_text("keyboard-interactive");
     auth_combo.set_active(Some(0));
-    auth_combo.set_name("ssh_auth_method");
     widget.append(&auth_combo);
     
     widget
@@ -633,7 +632,6 @@ fn create_ftp_options() -> gtk::Box {
     
     let passive_check = gtk::CheckButton::with_label("Use Passive Mode");
     passive_check.set_active(true);
-    passive_check.set_name("ftp_passive");
     widget.append(&passive_check);
     
     widget
@@ -652,11 +650,10 @@ fn create_http_options() -> gtk::Box {
     widget.append(&auth_label);
     
     let auth_combo = gtk::ComboBoxText::new();
-    auth_combo.append(Some("basic"), "Basic");
-    auth_combo.append(Some("digest"), "Digest");
-    auth_combo.append(Some("form"), "Form-based");
+    auth_combo.append_text("basic");
+    auth_combo.append_text("digest");
+    auth_combo.append_text("form");
     auth_combo.set_active(Some(0));
-    auth_combo.set_name("http_auth_type");
     widget.append(&auth_combo);
     
     let url_label = gtk::Label::new(Some("Login URL:"));
@@ -664,8 +661,7 @@ fn create_http_options() -> gtk::Box {
     widget.append(&url_label);
     
     let url_entry = gtk::Entry::new();
-    url_entry.set_placeholder_text(Some("/login"));
-    url_entry.set_name("http_login_url");
+    url_entry.set_placeholder_text(Some("https://example.com/login"));
     widget.append(&url_entry);
     
     widget
@@ -684,11 +680,10 @@ fn create_smtp_options() -> gtk::Box {
     widget.append(&auth_label);
     
     let auth_combo = gtk::ComboBoxText::new();
-    auth_combo.append(Some("plain"), "PLAIN");
-    auth_combo.append(Some("login"), "LOGIN");
-    auth_combo.append(Some("cram-md5"), "CRAM-MD5");
+    auth_combo.append_text("None");
+    auth_combo.append_text("PLAIN");
+    auth_combo.append_text("LOGIN");
     auth_combo.set_active(Some(0));
-    auth_combo.set_name("smtp_auth_method");
     widget.append(&auth_combo);
     
     widget
@@ -707,8 +702,7 @@ fn create_mysql_options() -> gtk::Box {
     widget.append(&db_label);
     
     let db_entry = gtk::Entry::new();
-    db_entry.set_placeholder_text(Some("mysql"));
-    db_entry.set_name("mysql_database");
+    db_entry.set_placeholder_text(Some("Database name"));
     widget.append(&db_entry);
     
     widget
@@ -727,8 +721,7 @@ fn create_postgres_options() -> gtk::Box {
     widget.append(&db_label);
     
     let db_entry = gtk::Entry::new();
-    db_entry.set_placeholder_text(Some("postgres"));
-    db_entry.set_name("pg_database");
+    db_entry.set_placeholder_text(Some("Database name"));
     widget.append(&db_entry);
     
     widget
@@ -748,7 +741,6 @@ fn create_smb_options() -> gtk::Box {
     
     let domain_entry = gtk::Entry::new();
     domain_entry.set_placeholder_text(Some("WORKGROUP"));
-    domain_entry.set_name("smb_domain");
     widget.append(&domain_entry);
     
     let share_label = gtk::Label::new(Some("Share:"));
@@ -756,8 +748,7 @@ fn create_smb_options() -> gtk::Box {
     widget.append(&share_label);
     
     let share_entry = gtk::Entry::new();
-    share_entry.set_placeholder_text(Some("C$"));
-    share_entry.set_name("smb_share");
+    share_entry.set_placeholder_text(Some("share"));
     widget.append(&share_entry);
     
     widget

@@ -185,7 +185,7 @@ impl StatisticsView {
         
         // Create header
         let header_label = gtk::Label::new(Some("Attack Statistics"));
-        header_label.get_style_context().add_class("title-1");
+        header_label.style_context().add_class("title-1");
         widget.append(&header_label);
         
         // Create summary section

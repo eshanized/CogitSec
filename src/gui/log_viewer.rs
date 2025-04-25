@@ -44,7 +44,7 @@ impl LogViewer {
         
         // Create header
         let header_label = gtk::Label::new(Some("Application Logs"));
-        header_label.get_style_context().add_class("title-1");
+        header_label.style_context().add_class("title-1");
         widget.append(&header_label);
         
         // Create log view
@@ -67,7 +67,7 @@ impl LogViewer {
         text_view.set_wrap_mode(gtk::WrapMode::WordChar);
         scroll.set_child(Some(&text_view));
         
-        let buffer = text_view.buffer().unwrap();
+        let buffer = text_view.buffer();
         
         // Create tag for errors
         let error_tag = buffer.create_tag(Some("error"), &[("foreground", &"#ff0000")]);
@@ -160,19 +160,19 @@ impl LogViewer {
         if let Ok(engine) = self.engine.lock() {
             if let Ok(logger) = engine.logger().lock() {
                 // Get entries
-                let entries = logger.get_entries();
+                let entries = logger.entries();
                 
                 // Get only new entries
                 let last_id = *self.last_seen_id.borrow();
                 let new_entries: Vec<&LogEntry> = entries.iter()
-                    .filter(|e| e.id > last_id)
-                    .filter(|e| !*self.only_errors.borrow() || e.level == "ERROR")
+                    .skip(last_id)
+                    .filter(|e| !*self.only_errors.borrow() || e.level == LogLevel::Error)
                     .collect();
                 
                 if !new_entries.is_empty() {
                     // Update the last seen ID
-                    if let Some(last_entry) = new_entries.last() {
-                        *self.last_seen_id.borrow_mut() = last_entry.id;
+                    if let Some(_) = new_entries.last() {
+                        *self.last_seen_id.borrow_mut() = last_id + new_entries.len();
                     }
                     
                     // Get current end iter
@@ -202,12 +202,11 @@ impl LogViewer {
                         let message_offset = end_iter.offset();
                         self.buffer.insert(&mut end_iter, &entry.message);
                         
-                        let tag_name = match entry.level.as_str() {
-                            "ERROR" => "error",
-                            "WARNING" => "warning",
-                            "INFO" => "info",
-                            "DEBUG" => "debug",
-                            _ => "info",
+                        let tag_name = match entry.level {
+                            LogLevel::Error => "error",
+                            LogLevel::Warning => "warning",
+                            LogLevel::Info => "info",
+                            LogLevel::Debug => "debug",
                         };
                         
                         self.buffer.apply_tag_by_name(
@@ -219,12 +218,12 @@ impl LogViewer {
                     
                     // Auto-scroll if enabled
                     if *self.auto_scroll.borrow() {
-                        let scroll_mark = self.buffer.create_mark(None, &end_iter, false).unwrap();
+                        let scroll_mark = self.buffer.create_mark(None, &end_iter, false);
                         
-                        // Get the parent TextView
-                        if let Some(text_view) = self.buffer.text_view() {
-                            text_view.scroll_to_mark(&scroll_mark, 0.0, true, 0.0, 1.0);
-                        }
+                        // Find an existing TextView with our buffer, and scroll it
+                        // This is a simplified approach - in a real app this would need more work
+                        // to ensure we're scrolling the correct view
+                        self.buffer.scroll_mark_onscreen(&scroll_mark);
                     }
                 }
             }

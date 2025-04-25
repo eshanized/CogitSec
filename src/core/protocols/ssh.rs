@@ -238,12 +238,13 @@ impl ProtocolHandler for SSHHandler {
     ) -> Result<Vec<VulnerabilityResult>> {
         let target = target.to_string();
         let credentials_clone = credentials.cloned();
+        let handler = Self::new(); // Create a new handler for the task
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<VulnerabilityResult>> {
             let mut vulnerabilities = Vec::new();
             
             // Check SSH version
-            let ssh_version = match self.check_ssh_version(&target, port, timeout) {
+            let ssh_version = match handler.check_ssh_version(&target, port, timeout) {
                 Ok(version) => version,
                 Err(_) => "Unknown".to_string(),
             };
@@ -264,10 +265,10 @@ impl ProtocolHandler for SSHHandler {
             }
             
             // Try to establish connection
-            let connection_result = self.connect(&target, port, timeout);
+            let connection_result = handler.connect(&target, port, timeout);
             if let Ok((_, session)) = connection_result {
                 // Check if password authentication is allowed
-                if self.check_password_auth(&session) {
+                if handler.check_password_auth(&session) {
                     vulnerabilities.push(VulnerabilityResult {
                         id: "SSH-PASSWORD-AUTH".to_string(),
                         severity: VulnerabilitySeverity::Medium,
@@ -279,7 +280,7 @@ impl ProtocolHandler for SSHHandler {
                 }
                 
                 // Check if MFA is enforced
-                if !self.check_mfa_enforced(&session) {
+                if !handler.check_mfa_enforced(&session) {
                     vulnerabilities.push(VulnerabilityResult {
                         id: "SSH-NO-MFA".to_string(),
                         severity: VulnerabilitySeverity::Medium,
@@ -291,7 +292,7 @@ impl ProtocolHandler for SSHHandler {
                 }
                 
                 // Check for weak algorithms
-                if let Ok(weak_algos) = self.check_weak_algorithms(&target, port) {
+                if let Ok(weak_algos) = handler.check_weak_algorithms(&target, port) {
                     if !weak_algos.is_empty() {
                         vulnerabilities.push(VulnerabilityResult {
                             id: "SSH-WEAK-ALGORITHMS".to_string(),
@@ -360,14 +361,16 @@ impl ProtocolHandler for SSHHandler {
     ) -> Result<HashMap<String, bool>> {
         let target = target.to_string();
         let credentials_clone = credentials.cloned();
+        let standard_clone = standard;
+        let handler = Self::new(); // Create a new handler for the task
         
         let result = tokio::task::spawn_blocking(move || -> Result<HashMap<String, bool>> {
             let mut compliance_results = HashMap::new();
             
             // Try to establish connection
-            let connection_result = self.connect(&target, port, timeout);
+            let connection_result = handler.connect(&target, port, timeout);
             
-            match standard {
+            match standard_clone {
                 ComplianceStandard::PCI_DSS => {
                     // PCI DSS requirements related to SSH
                     compliance_results.insert("8.2.1-Strong-Cryptography".to_string(), true);
@@ -375,14 +378,14 @@ impl ProtocolHandler for SSHHandler {
                     if let Ok((_, session)) = &connection_result {
                         // Check if password authentication is disabled (8.2.3)
                         compliance_results.insert("8.2.3-Password-Auth-Disabled".to_string(), 
-                                                 !self.check_password_auth(session));
+                                                 !handler.check_password_auth(session));
                         
                         // Check if MFA is enforced (8.3)
                         compliance_results.insert("8.3-MFA-Enforced".to_string(), 
-                                                 self.check_mfa_enforced(session));
+                                                 handler.check_mfa_enforced(session));
                         
                         // Check for weak algorithms (4.1)
-                        if let Ok(weak_algos) = self.check_weak_algorithms(&target, port) {
+                        if let Ok(weak_algos) = handler.check_weak_algorithms(&target, port) {
                             compliance_results.insert("4.1-Strong-Cryptography".to_string(), 
                                                      weak_algos.is_empty());
                         }
@@ -393,17 +396,17 @@ impl ProtocolHandler for SSHHandler {
                     if let Ok((_, session)) = &connection_result {
                         // Check if password authentication is disabled
                         compliance_results.insert("PR.AC-1-Strong-Authentication".to_string(),
-                                                !self.check_password_auth(session) || self.check_mfa_enforced(session));
+                                                !handler.check_password_auth(session) || handler.check_mfa_enforced(session));
                         
                         // Check for weak algorithms
-                        if let Ok(weak_algos) = self.check_weak_algorithms(&target, port) {
+                        if let Ok(weak_algos) = handler.check_weak_algorithms(&target, port) {
                             compliance_results.insert("PR.DS-2-Data-In-Transit".to_string(),
                                                      weak_algos.is_empty());
                         }
                     }
                     
                     // SSH version check
-                    if let Ok(ssh_version) = self.check_ssh_version(&target, port, timeout) {
+                    if let Ok(ssh_version) = handler.check_ssh_version(&target, port, timeout) {
                         let is_current = !ssh_version.contains("1.") && 
                                          !ssh_version.contains("2.0") && 
                                          !ssh_version.contains("4.") && 
@@ -416,10 +419,10 @@ impl ProtocolHandler for SSHHandler {
                     if let Ok((_, session)) = &connection_result {
                         // Check access control (A.9)
                         compliance_results.insert("A.9.4.2-Secure-Authentication".to_string(),
-                                                !self.check_password_auth(session) || self.check_mfa_enforced(session));
+                                                !handler.check_password_auth(session) || handler.check_mfa_enforced(session));
                         
                         // Check cryptography (A.10)
-                        if let Ok(weak_algos) = self.check_weak_algorithms(&target, port) {
+                        if let Ok(weak_algos) = handler.check_weak_algorithms(&target, port) {
                             compliance_results.insert("A.10.1.1-Cryptography-Policy".to_string(),
                                                      weak_algos.is_empty());
                         }
@@ -428,12 +431,11 @@ impl ProtocolHandler for SSHHandler {
                 _ => {
                     // For other standards, add generic SSH security checks
                     if let Ok((_, session)) = &connection_result {
-                        compliance_results.insert("Strong-Authentication".to_string(),
-                                                !self.check_password_auth(session) || self.check_mfa_enforced(session));
-                        
-                        if let Ok(weak_algos) = self.check_weak_algorithms(&target, port) {
-                            compliance_results.insert("Strong-Encryption".to_string(),
-                                                     weak_algos.is_empty());
+                        compliance_results.insert("Secure-Authentication".to_string(), 
+                                                 !handler.check_password_auth(session) || handler.check_mfa_enforced(session));
+                                                 
+                        if let Ok(weak_algos) = handler.check_weak_algorithms(&target, port) {
+                            compliance_results.insert("Strong-Cryptography".to_string(), weak_algos.is_empty());
                         }
                     }
                 }
@@ -537,82 +539,81 @@ impl ProtocolHandler for SSHHandler {
         _use_ssl: bool,
     ) -> Result<Vec<String>> {
         let target = target.to_string();
-        let credentials = credentials.clone();
+        let credentials_clone = credentials.clone();
+        let handler = Self::new(); // Create a new handler for the task
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<String>> {
             let mut resources = Vec::new();
             
             // Connect to the server
-            let (_, mut session) = self.connect(&target, port, timeout)?;
+            let (_, session) = handler.connect(&target, port, timeout)?;
             
             // Authenticate
-            session.userauth_password(&credentials.username, &credentials.password)
-                .with_context(|| format!("Failed to authenticate as {}", credentials.username))?;
-            
-            // List files in home directory
+            session.userauth_password(&credentials_clone.username, &credentials_clone.password)
+                .with_context(|| format!("Authentication failed for user {}", credentials_clone.username))?;
+                
+            // Check user home directory
             let mut channel = session.channel_session()?;
-            channel.exec("ls -la ~")?;
+            channel.exec("pwd")?;
             
-            let mut output = String::new();
-            channel.read_to_string(&mut output)?;
+            let mut home_dir = String::new();
+            channel.read_to_string(&mut home_dir)?;
+            channel.wait_close()?;
             
-            // Add found files/directories to resources
-            for line in output.lines().skip(1) { // Skip the total line
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 9 {
-                    let name = parts[8];
-                    if name != "." && name != ".." {
-                        resources.push(format!("file:{}", name));
-                    }
-                }
-            }
+            home_dir = home_dir.trim().to_string();
+            resources.push(format!("home_directory:{}", home_dir));
             
-            // Check for common services
-            let services_to_check = [
-                "nginx", "apache2", "postgresql", "mysql", "docker", "kubelet"
-            ];
-            
-            for service in services_to_check {
+            // List standard directories
+            for dir in &["/etc", "/var/log", "/tmp", &home_dir] {
                 let mut channel = session.channel_session()?;
-                channel.exec(&format!("systemctl is-active {} 2>/dev/null || echo inactive", service))?;
+                channel.exec(&format!("ls -la {}", dir))?;
                 
                 let mut output = String::new();
                 channel.read_to_string(&mut output)?;
                 
-                if output.trim() == "active" {
-                    resources.push(format!("service:{}", service));
+                if channel.exit_status()? == 0 {
+                    resources.push(format!("directory:{}", dir));
+                    
+                    // Parse the output to find files
+                    for line in output.lines() {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 8 {
+                            // Skip . and ..
+                            let name = parts[8];
+                            if name != "." && name != ".." {
+                                let path = format!("{}/{}", dir, name);
+                                let file_type = match parts[0].chars().next() {
+                                    Some('d') => "directory",
+                                    Some('-') => "file",
+                                    Some('l') => "symlink",
+                                    _ => "other",
+                                };
+                                
+                                resources.push(format!("{}:{}", file_type, path));
+                            }
+                        }
+                    }
                 }
             }
             
-            // Get list of users with shell access
+            // Check for users
             let mut channel = session.channel_session()?;
-            channel.exec("cat /etc/passwd | grep -v /nologin | grep -v /false | cut -d: -f1")?;
+            channel.exec("cat /etc/passwd")?;
             
             let mut output = String::new();
             channel.read_to_string(&mut output)?;
             
-            for user in output.lines() {
-                if !user.is_empty() {
-                    resources.push(format!("user:{}", user));
-                }
-            }
-            
-            // Get network interfaces
-            let mut channel = session.channel_session()?;
-            channel.exec("ip -brief address show | awk '{print $1}'")?;
-            
-            let mut output = String::new();
-            channel.read_to_string(&mut output)?;
-            
-            for iface in output.lines() {
-                if !iface.is_empty() {
-                    resources.push(format!("network_interface:{}", iface));
+            if channel.exit_status()? == 0 {
+                for line in output.lines() {
+                    if let Some(username) = line.split(':').next() {
+                        resources.push(format!("user:{}", username));
+                    }
                 }
             }
             
             Ok(resources)
         }).await
-            .with_context(|| "SSH enumerate resources task failed")?;
+            .with_context(|| "SSH resource enumeration task failed")?;
             
         Ok(result?)
     }
@@ -627,91 +628,65 @@ impl ProtocolHandler for SSHHandler {
         _use_ssl: bool,
     ) -> Result<Vec<HashMap<String, String>>> {
         let target = target.to_string();
-        let credentials = credentials.clone();
-        let query = query.to_string();
+        let credentials_clone = credentials.clone();
+        let query_clone = query.to_string();
+        let handler = Self::new(); // Create a new handler for the task
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<HashMap<String, String>>> {
             let mut data = Vec::new();
             
             // Connect to the server
-            let (_, mut session) = self.connect(&target, port, timeout)?;
+            let (_, session) = handler.connect(&target, port, timeout)?;
             
             // Authenticate
-            session.userauth_password(&credentials.username, &credentials.password)
-                .with_context(|| format!("Failed to authenticate as {}", credentials.username))?;
-            
-            // Execute the query command
+            session.userauth_password(&credentials_clone.username, &credentials_clone.password)
+                .with_context(|| format!("Authentication failed for user {}", credentials_clone.username))?;
+                
+            // Execute the query (command)
             let mut channel = session.channel_session()?;
-            channel.exec(&query)?;
+            channel.exec(&query_clone)?;
             
             let mut output = String::new();
             channel.read_to_string(&mut output)?;
             let exit_status = channel.exit_status()?;
             
-            if exit_status != 0 {
-                return Err(anyhow!("Command failed with exit status {}: {}", exit_status, output.trim()));
-            }
+            // Create a result object
+            let mut result = HashMap::new();
+            result.insert("command".to_string(), query_clone);
+            result.insert("exit_status".to_string(), exit_status.to_string());
+            result.insert("output".to_string(), output.clone());
             
-            // Parse the output into structured data
-            // Assuming the output is in a simple format with lines and columns
+            data.push(result);
+            
+            // If the output looks like a list of items, try to parse it
             let lines: Vec<&str> = output.lines().collect();
-            
-            if lines.is_empty() {
-                return Ok(data);
-            }
-            
-            // Try to detect if the output has headers
-            let has_headers = !lines[0].starts_with(' ') && 
-                              !lines[0].starts_with('\t') && 
-                              lines[0].contains(' ');
-            
-            let header_line = if has_headers { 0 } else { 0 };
-            let data_start_line = if has_headers { 1 } else { 0 };
-            
-            // Extract headers or generate them
-            let headers: Vec<String> = if has_headers {
-                lines[header_line]
-                    .split_whitespace()
-                    .map(|s| s.to_string())
-                    .collect()
-            } else {
-                // Generate headers as Column1, Column2, etc.
-                if !lines.is_empty() {
-                    let num_columns = lines[0].split_whitespace().count();
-                    (1..=num_columns)
-                        .map(|i| format!("Column{}", i))
-                        .collect()
-                } else {
-                    Vec::new()
+            if lines.len() > 1 {
+                let first_line = lines[0];
+                let headers: Vec<&str> = first_line.split_whitespace().collect();
+                
+                if headers.len() > 1 {
+                    // This might be a table output (e.g., ls -l, ps, etc.)
+                    for line in &lines[1..] {
+                        let values: Vec<&str> = line.split_whitespace().collect();
+                        
+                        if values.len() >= headers.len() {
+                            let mut row = HashMap::new();
+                            
+                            for (i, header) in headers.iter().enumerate() {
+                                if i < values.len() {
+                                    row.insert(header.to_string(), values[i].to_string());
+                                }
+                            }
+                            
+                            data.push(row);
+                        }
+                    }
                 }
-            };
-            
-            // Process data lines
-            for line_idx in data_start_line..lines.len() {
-                let values: Vec<&str> = lines[line_idx].split_whitespace().collect();
-                
-                if values.is_empty() {
-                    continue;
-                }
-                
-                let mut row = HashMap::new();
-                
-                for (i, value) in values.iter().enumerate() {
-                    let header = if i < headers.len() {
-                        headers[i].clone()
-                    } else {
-                        format!("Column{}", i + 1)
-                    };
-                    
-                    row.insert(header, value.to_string());
-                }
-                
-                data.push(row);
             }
             
             Ok(data)
         }).await
-            .with_context(|| "SSH extract data task failed")?;
+            .with_context(|| "SSH data extraction task failed")?;
             
         Ok(result?)
     }

@@ -155,10 +155,9 @@ impl Engine {
     /// Get the current attack progress
     pub fn get_attack_progress(&self) -> Result<AttackProgress> {
         if let Ok(manager) = self.attack_manager.lock() {
-            let progress = manager.progress();
-            if let Ok(progress) = progress.lock() {
-                return Ok(progress.clone());
-            }
+            let progress_arc = manager.progress();
+            let progress = progress_arc.lock().map_err(|_| anyhow::anyhow!("Failed to lock progress"))?;
+            return Ok(progress.clone());
         }
         
         Err(anyhow::anyhow!("Failed to get attack progress"))
@@ -167,10 +166,9 @@ impl Engine {
     /// Get the current attack results
     pub fn get_attack_results(&self) -> Result<Vec<AttackResult>> {
         if let Ok(manager) = self.attack_manager.lock() {
-            let results = manager.results();
-            if let Ok(results) = results.lock() {
-                return Ok(results.clone());
-            }
+            let results_arc = manager.results();
+            let results = results_arc.lock().map_err(|_| anyhow::anyhow!("Failed to lock results"))?;
+            return Ok(results.clone());
         }
         
         Err(anyhow::anyhow!("Failed to get attack results"))

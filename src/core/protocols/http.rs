@@ -608,8 +608,10 @@ impl ProtocolHandler for HTTPHandler {
             return Err(anyhow!("HTTP request failed with status: {}", response.status()));
         }
         
-        // Try to parse as JSON
-        if let Ok(json) = response.json::<serde_json::Value>().await {
+        // Try to parse as JSON first (clone the response for text backup)
+        let text_response = response.text().await?;
+        
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text_response) {
             match json {
                 serde_json::Value::Array(items) => {
                     let mut result = Vec::new();
@@ -643,9 +645,8 @@ impl ProtocolHandler for HTTPHandler {
             }
         } else {
             // Not JSON, return as plain text
-            let text = response.text().await?;
             let mut row = HashMap::new();
-            row.insert("content".to_string(), text);
+            row.insert("content".to_string(), text_response);
             Ok(vec![row])
         }
     }

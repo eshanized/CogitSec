@@ -63,7 +63,7 @@ impl SMTPHandler {
         
         // Read additional EHLO responses if multiline
         let mut reader = BufReader::new(stream.try_clone()?);
-        let mut full_response = response;
+        let mut full_response = response.clone();
         let mut line = String::new();
         
         // Continue reading until we get a line that doesn't start with a dash
@@ -122,7 +122,7 @@ impl SMTPHandler {
         
         // Read multiline response
         let mut reader = BufReader::new(stream.try_clone()?);
-        let mut capabilities = response;
+        let mut capabilities = response.clone();
         let mut line = String::new();
         
         while reader.read_line(&mut line).is_ok() && !line.is_empty() {
@@ -136,9 +136,25 @@ impl SMTPHandler {
             line.clear();
         }
         
-        info.insert("capabilities".to_string(), capabilities);
+        // Check if we have a multiline response (indicated by a dash after the code)
+        let mut full_response = response.clone();
         
-        // Check for AUTH methods
+        // If it's a multiline response, read the remaining lines
+        while response.starts_with("250-") && reader.read_line(&mut line).is_ok() {
+            full_response.push_str(&line);
+            line.clear();
+        }
+        
+        // Check for STARTTLS
+        let supports_tls = capabilities.contains("STARTTLS");
+        
+        // Check for authentication methods
+        let supports_auth = capabilities.contains("AUTH");
+        
+        // Create info map
+        info.insert("capabilities".to_string(), capabilities.clone());
+        
+        // Check for authentication mechanisms
         if capabilities.contains("AUTH") {
             let auth_line = capabilities.lines()
                 .find(|line| line.contains("AUTH"))
@@ -251,21 +267,23 @@ impl ProtocolHandler for SMTPHandler {
         &self,
         target: &str,
         port: u16,
-        _credentials: Option<&Credentials>,
+        credentials: Option<&Credentials>,
         timeout: Duration,
         use_ssl: bool,
         _options: &HashMap<String, String>,
     ) -> Result<Vec<VulnerabilityResult>> {
         let target = target.to_string();
+        let credentials_clone = credentials.cloned();
+        let handler = Self::new(); // Create a new handler for the task
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<VulnerabilityResult>> {
             let mut vulnerabilities = Vec::new();
             
             // Check if SMTP server is reachable
-            match self.connect_smtp(&target, port, timeout) {
+            match handler.connect_smtp(&target, port, timeout) {
                 Ok(mut stream) => {
                     // Get server info
-                    if let Ok(server_info) = self.get_server_info(&target, port, timeout) {
+                    if let Ok(server_info) = handler.get_server_info(&target, port, timeout) {
                         // Check for version information disclosure in banner
                         if let Some(banner) = server_info.get("banner") {
                             if banner.contains("version") || banner.contains("v") || banner.contains(".") {
@@ -297,7 +315,7 @@ impl ProtocolHandler for SMTPHandler {
                     
                     // Check for TLS support
                     if !use_ssl {
-                        match self.check_tls_support(&target, port, timeout) {
+                        match handler.check_tls_support(&target, port, timeout) {
                             Ok(tls_supported) => {
                                 if !tls_supported {
                                     vulnerabilities.push(VulnerabilityResult {
@@ -317,7 +335,7 @@ impl ProtocolHandler for SMTPHandler {
                     }
                     
                     // Check for open relay
-                    match self.check_open_relay(&target, port, timeout) {
+                    match handler.check_open_relay(&target, port, timeout) {
                         Ok(is_open_relay) => {
                             if is_open_relay {
                                 vulnerabilities.push(VulnerabilityResult {
@@ -359,47 +377,43 @@ impl ProtocolHandler for SMTPHandler {
         target: &str,
         port: u16,
         standard: ComplianceStandard,
-        _credentials: Option<&Credentials>,
+        credentials: Option<&Credentials>,
         timeout: Duration,
         use_ssl: bool,
     ) -> Result<HashMap<String, bool>> {
         let target = target.to_string();
+        let handler = Self::new(); // Create a new handler for the task
+        let standard_clone = standard;
+        let use_ssl_clone = use_ssl;
         
         let result = tokio::task::spawn_blocking(move || -> Result<HashMap<String, bool>> {
             let mut compliance_results = HashMap::new();
             
-            // Check if server is reachable
-            let server_reachable = self.connect_smtp(&target, port, timeout).is_ok();
+            // Check TLS support
+            let tls_supported = handler.check_tls_support(&target, port, timeout).unwrap_or(false);
             
-            // Check for TLS support
-            let tls_supported = if !use_ssl {
-                self.check_tls_support(&target, port, timeout).unwrap_or(false)
-            } else {
-                true // Already using SSL/TLS
-            };
+            // Check open relay
+            let is_open_relay = handler.check_open_relay(&target, port, timeout).unwrap_or(false);
             
-            // Check for open relay
-            let is_open_relay = self.check_open_relay(&target, port, timeout).unwrap_or(true);
-            
-            match standard {
+            match standard_clone {
                 ComplianceStandard::PCI_DSS => {
-                    // PCI DSS Requirement 4.1: Use strong cryptography and security protocols
-                    compliance_results.insert("PCI-DSS-Req-4.1".to_string(), use_ssl || tls_supported);
+                    // PCI DSS 4.1: Encryption in transit
+                    compliance_results.insert("PCI-4.1-Encryption".to_string(), use_ssl_clone || tls_supported);
                     
-                    // PCI DSS Requirement 2.2.2: Enable only necessary services/protocols
-                    compliance_results.insert("PCI-DSS-Req-2.2.2".to_string(), !is_open_relay);
+                    // No open relay (part of secure configuration)
+                    compliance_results.insert("PCI-1.1.6-Secure-Configuration".to_string(), !is_open_relay);
                 },
-                ComplianceStandard::GDPR => {
-                    // GDPR Article 32: Security of processing (encryption)
-                    compliance_results.insert("GDPR-Art-32-Encryption".to_string(), use_ssl || tls_supported);
+                ComplianceStandard::NIST_CSF => {
+                    // Protect data in transit
+                    compliance_results.insert("PR.DS-2-Data-In-Transit".to_string(), use_ssl_clone || tls_supported);
                     
-                    // GDPR Article 25: Data protection by design
-                    compliance_results.insert("GDPR-Art-25-Protection-By-Design".to_string(), !is_open_relay);
+                    // Proper access controls
+                    compliance_results.insert("PR.AC-4-Access-Control".to_string(), !is_open_relay);
                 },
                 _ => {
-                    // Generic email security baseline
-                    compliance_results.insert("Email-Security-Baseline".to_string(), (use_ssl || tls_supported) && !is_open_relay);
-                    compliance_results.insert("Server-Available".to_string(), server_reachable);
+                    // Generic security best practices
+                    compliance_results.insert("Encryption-In-Transit".to_string(), use_ssl_clone || tls_supported);
+                    compliance_results.insert("No-Open-Relay".to_string(), !is_open_relay);
                 }
             }
             
@@ -416,73 +430,85 @@ impl ProtocolHandler for SMTPHandler {
         port: u16,
         duration: Duration,
         interval: Duration,
-        _credentials: Option<&Credentials>,
+        credentials: Option<&Credentials>,
         use_ssl: bool,
     ) -> Result<Vec<MonitoringData>> {
         let target = target.to_string();
+        let credentials_clone = credentials.cloned();
+        let handler = Self::new(); // Create a new handler for the task
+        let use_ssl_clone = use_ssl;
         
         let mut monitoring_data = Vec::new();
         let end_time = Instant::now() + duration;
         
         while Instant::now() < end_time {
             let target_clone = target.clone();
+            let credentials_inner = credentials_clone.clone();
             
             let result = tokio::task::spawn_blocking(move || -> Result<MonitoringData> {
                 let now = Utc::now();
                 let start = Instant::now();
                 
-                // Try to connect to the SMTP server
-                match self.connect_smtp(&target_clone, port, Duration::from_secs(5)) {
+                let mut event_data = MonitoringData {
+                    timestamp: now,
+                    event_type: "smtp_connection".to_string(),
+                    latency_ms: None,
+                    bytes_transferred: None,
+                    error: None,
+                };
+                
+                // Try to connect
+                match handler.connect_smtp(&target_clone, port, Duration::from_secs(10)) {
                     Ok(mut stream) => {
-                        // Send EHLO to check server responsiveness
-                        let ehlo_start = Instant::now();
-                        match self.send_command(&mut stream, &format!("EHLO {}", "localhost")) {
-                            Ok(response) => {
-                                let ehlo_time = ehlo_start.elapsed().as_millis() as u64;
-                                let total_time = start.elapsed().as_millis() as u64;
-                                
-                                // Send QUIT to cleanly close the connection
-                                let _ = self.send_command(&mut stream, "QUIT");
-                                
-                                MonitoringData {
-                                    timestamp: now,
-                                    event_type: "smtp_responsive".to_string(),
-                                    latency_ms: Some(total_time),
-                                    bytes_transferred: Some(response.len() as u64),
-                                    error: None,
-                                }
-                            },
-                            Err(e) => {
-                                let total_time = start.elapsed().as_millis() as u64;
-                                
-                                MonitoringData {
-                                    timestamp: now,
-                                    event_type: "smtp_command_failed".to_string(),
-                                    latency_ms: Some(total_time),
-                                    bytes_transferred: None,
-                                    error: Some(e.to_string()),
+                        // Measure latency
+                        let latency = start.elapsed().as_millis() as u64;
+                        event_data.latency_ms = Some(latency);
+                        
+                        // Try EHLO command
+                        if let Ok(response) = handler.send_command(&mut stream, "EHLO monitoring.test") {
+                            event_data.bytes_transferred = Some(response.len() as u64);
+                            
+                            // Try to authenticate if credentials provided
+                            if let Some(creds) = &credentials_inner {
+                                let auth_cmd = format!("AUTH LOGIN");
+                                if let Ok(_) = handler.send_command(&mut stream, &auth_cmd) {
+                                    // Send username (base64 encoded)
+                                    let username_b64 = base64::encode(&creds.username);
+                                    if let Ok(_) = handler.send_command(&mut stream, &username_b64) {
+                                        // Send password (base64 encoded)
+                                        let password_b64 = base64::encode(&creds.password);
+                                        match handler.send_command(&mut stream, &password_b64) {
+                                            Ok(auth_response) => {
+                                                if auth_response.starts_with("235") {
+                                                    event_data.event_type = "smtp_auth_success".to_string();
+                                                } else {
+                                                    event_data.event_type = "smtp_auth_failure".to_string();
+                                                    event_data.error = Some(auth_response);
+                                                }
+                                            },
+                                            Err(e) => {
+                                                event_data.event_type = "smtp_auth_error".to_string();
+                                                event_data.error = Some(e.to_string());
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     },
                     Err(e) => {
-                        let total_time = start.elapsed().as_millis() as u64;
-                        
-                        MonitoringData {
-                            timestamp: now,
-                            event_type: "smtp_connection_failed".to_string(),
-                            latency_ms: Some(total_time),
-                            bytes_transferred: None,
-                            error: Some(e.to_string()),
-                        }
+                        event_data.event_type = "smtp_connection_failed".to_string();
+                        event_data.error = Some(e.to_string());
                     }
                 }
+                
+                Ok(event_data)
             }).await
                 .with_context(|| "SMTP monitoring task failed")?;
                 
             monitoring_data.push(result?);
             
-            // Wait for the next interval
+            // Wait for the interval
             time::sleep(interval).await;
         }
         
@@ -493,63 +519,72 @@ impl ProtocolHandler for SMTPHandler {
         &self,
         target: &str,
         port: u16,
-        _credentials: &Credentials,
+        credentials: &Credentials,
         timeout: Duration,
         use_ssl: bool,
     ) -> Result<Vec<String>> {
         let target = target.to_string();
+        let credentials_clone = credentials.clone();
+        let handler = Self::new(); // Create a new handler for the task
+        let use_ssl_clone = use_ssl;
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<String>> {
             let mut resources = Vec::new();
             
-            // Connect to the server
-            match self.connect_smtp(&target, port, timeout) {
-                Ok(_) => {
-                    // Get server info
-                    if let Ok(server_info) = self.get_server_info(&target, port, timeout) {
-                        // Add banner information
-                        if let Some(banner) = server_info.get("banner") {
-                            resources.push(format!("banner:{}", banner));
-                        }
-                        
-                        // Add capabilities
-                        if let Some(capabilities) = server_info.get("capabilities") {
-                            for line in capabilities.lines() {
-                                if line.starts_with("250-") || line.starts_with("250 ") {
-                                    let capability = line[4..].trim();
-                                    resources.push(format!("capability:{}", capability));
-                                }
-                            }
-                        }
-                        
-                        // Add authentication methods
-                        if let Some(auth_methods) = server_info.get("auth_methods") {
-                            if auth_methods.contains("AUTH") {
-                                for method in auth_methods.split_whitespace().skip(1) {
-                                    resources.push(format!("auth_method:{}", method));
-                                }
-                            }
+            // Connect to SMTP server
+            let mut stream = handler.connect_smtp(&target, port, timeout)?;
+            
+            // Get server info
+            if let Ok(server_info) = handler.get_server_info(&target, port, timeout) {
+                // Add server banner
+                if let Some(banner) = server_info.get("banner") {
+                    resources.push(format!("banner:{}", banner));
+                }
+                
+                // Add capabilities
+                if let Some(capabilities) = server_info.get("capabilities") {
+                    for cap in capabilities.lines() {
+                        let cap = cap.trim();
+                        if !cap.is_empty() {
+                            resources.push(format!("capability:{}", cap));
                         }
                     }
-                    
-                    // Check TLS support
-                    if !use_ssl {
-                        if let Ok(tls_supported) = self.check_tls_support(&target, port, timeout) {
-                            resources.push(format!("tls_support:{}", tls_supported));
+                }
+            }
+            
+            // Try to authenticate
+            if use_ssl_clone {
+                // For SSL/TLS SMTP, need to implement proper SSL connection
+                resources.push("note:SSL/TLS authentication not implemented in this example".to_string());
+            } else {
+                // Try various auth methods
+                for auth_method in &["LOGIN", "PLAIN"] {
+                    let auth_cmd = format!("AUTH {}", auth_method);
+                    if let Ok(response) = handler.send_command(&mut stream, &auth_cmd) {
+                        if response.starts_with("334") {
+                            // Server accepts this auth method
+                            resources.push(format!("auth_method:{}", auth_method));
+                            
+                            // For demo, don't actually authenticate, just cancel
+                            let _ = handler.send_command(&mut stream, "*");
                         }
-                    } else {
-                        resources.push("tls_support:true".to_string());
                     }
-                    
-                    // Add connection type
-                    if use_ssl {
-                        resources.push("connection:SSL/TLS".to_string());
-                    } else {
-                        resources.push("connection:plain".to_string());
+                }
+            }
+            
+            // Try to VRFY email addresses
+            // This is often disabled on modern SMTP servers
+            let test_emails = [
+                "postmaster", "admin", "root", "info", "support", "webmaster"
+            ];
+            
+            for email in &test_emails {
+                let vrfy_cmd = format!("VRFY {}", email);
+                if let Ok(response) = handler.send_command(&mut stream, &vrfy_cmd) {
+                    if !response.starts_with("550") && !response.starts_with("500") {
+                        // VRFY command supported and email might exist
+                        resources.push(format!("email:{}", email));
                     }
-                },
-                Err(_) => {
-                    resources.push("status:unavailable".to_string());
                 }
             }
             
@@ -564,100 +599,79 @@ impl ProtocolHandler for SMTPHandler {
         &self,
         target: &str,
         port: u16,
-        _credentials: &Credentials,
+        credentials: &Credentials,
         query: &str,
         timeout: Duration,
         use_ssl: bool,
     ) -> Result<Vec<HashMap<String, String>>> {
         let target = target.to_string();
-        let query = query.to_string();
+        let credentials_clone = credentials.clone();
+        let query_clone = query.to_string();
+        let handler = Self::new(); // Create a new handler for the task
+        let use_ssl_clone = use_ssl;
         
         let result = tokio::task::spawn_blocking(move || -> Result<Vec<HashMap<String, String>>> {
             let mut data = Vec::new();
             
-            // For SMTP, the extract_data method has limited functionality
-            // since SMTP is primarily for sending mail, not retrieving data
-            // We'll implement some basic info gathering based on the query
+            // Parse the query to determine what data to extract
+            let query_parts: Vec<&str> = query_clone.split(":").collect();
+            let query_type = if query_parts.len() > 0 { query_parts[0] } else { "" };
             
-            match query.as_str() {
-                "server_info" => {
-                    // Get server info
-                    if let Ok(server_info) = self.get_server_info(&target, port, timeout) {
-                        let mut entry = HashMap::new();
-                        
-                        for (key, value) in server_info {
-                            entry.insert(key, value);
-                        }
-                        
-                        // Add connection type
-                        if use_ssl {
-                            entry.insert("connection_type".to_string(), "SSL/TLS".to_string());
-                        } else {
-                            entry.insert("connection_type".to_string(), "plain".to_string());
-                        }
-                        
-                        data.push(entry);
-                    }
-                },
+            // Connect to SMTP server
+            let mut stream = handler.connect_smtp(&target, port, timeout)?;
+            
+            // Create base response
+            let mut response_data = HashMap::new();
+            response_data.insert("server".to_string(), target.clone());
+            response_data.insert("port".to_string(), port.to_string());
+            
+            match query_type {
                 "capabilities" => {
-                    // Get SMTP capabilities
-                    if let Ok(server_info) = self.get_server_info(&target, port, timeout) {
-                        if let Some(capabilities) = server_info.get("capabilities") {
-                            for line in capabilities.lines() {
-                                if line.starts_with("250-") || line.starts_with("250 ") {
-                                    let mut entry = HashMap::new();
-                                    let capability = line[4..].trim();
-                                    
-                                    entry.insert("capability".to_string(), capability.to_string());
-                                    data.push(entry);
-                                }
-                            }
+                    // Get server capabilities
+                    if let Ok(server_info) = handler.get_server_info(&target, port, timeout) {
+                        for (key, value) in server_info {
+                            response_data.insert(key, value);
                         }
                     }
                 },
-                "tls_check" => {
-                    // Check TLS support
-                    let mut entry = HashMap::new();
+                "auth_test" => {
+                    // Test authentication
+                    let auth_result = handler.authenticate_smtp(
+                        &mut stream, 
+                        &credentials_clone.username, 
+                        &credentials_clone.password
+                    );
                     
-                    if use_ssl {
-                        entry.insert("tls_support".to_string(), "enabled".to_string());
-                        entry.insert("connection_type".to_string(), "SSL/TLS".to_string());
-                    } else if let Ok(tls_supported) = self.check_tls_support(&target, port, timeout) {
-                        entry.insert("tls_support".to_string(), if tls_supported { "available" } else { "unavailable" }.to_string());
-                        entry.insert("connection_type".to_string(), "plain".to_string());
-                    }
-                    
-                    data.push(entry);
-                },
-                "relay_check" => {
-                    // Check for open relay
-                    let mut entry = HashMap::new();
-                    
-                    if let Ok(is_open_relay) = self.check_open_relay(&target, port, timeout) {
-                        entry.insert("open_relay".to_string(), is_open_relay.to_string());
-                        
-                        if is_open_relay {
-                            entry.insert("security_risk".to_string(), "high".to_string());
-                            entry.insert("recommendation".to_string(), "Configure SMTP server to only accept mail from authenticated users or internal domains".to_string());
-                        } else {
-                            entry.insert("security_risk".to_string(), "low".to_string());
+                    match auth_result {
+                        Ok(_) => {
+                            response_data.insert("auth_success".to_string(), "true".to_string());
+                            response_data.insert("auth_method".to_string(), "LOGIN".to_string());
+                        },
+                        Err(e) => {
+                            response_data.insert("auth_success".to_string(), "false".to_string());
+                            response_data.insert("auth_error".to_string(), e.to_string());
                         }
                     }
-                    
-                    data.push(entry);
+                },
+                "check_relay" => {
+                    // Check if server is an open relay
+                    let is_open_relay = handler.check_open_relay(&target, port, timeout)?;
+                    response_data.insert("is_open_relay".to_string(), is_open_relay.to_string());
                 },
                 _ => {
-                    // Unknown query
-                    let mut entry = HashMap::new();
-                    entry.insert("error".to_string(), format!("Unknown query: {}", query));
-                    entry.insert("supported_queries".to_string(), "server_info, capabilities, tls_check, relay_check".to_string());
-                    data.push(entry);
+                    // Default behavior: just get server info
+                    if let Ok(server_info) = handler.get_server_info(&target, port, timeout) {
+                        for (key, value) in server_info {
+                            response_data.insert(key, value);
+                        }
+                    }
                 }
             }
             
+            data.push(response_data);
             Ok(data)
         }).await
-            .with_context(|| "SMTP extract data task failed")?;
+            .with_context(|| "SMTP data extraction task failed")?;
             
         Ok(result?)
     }
