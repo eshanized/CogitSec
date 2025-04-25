@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::{self, Application as GtkApplication, ApplicationWindow, HeaderBar, Label, Notebook};
+use gtk::{self, Application as GtkApplication, ApplicationWindow, HeaderBar, Label, Notebook, MenuButton, Image};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -65,15 +65,14 @@ impl Application {
         window.add(&main_box);
         
         // Create header bar
-        let header = gtk::HeaderBar::new();
-        header.set_show_close_button(true);
-        header.set_title(Some("CogitSec"));
-        header.set_subtitle(Some("Network Login Cracker"));
+        let header = HeaderBar::new();
+        header.set_title_widget(Some(&Label::new(Some("CogitSec"))));
+        header.set_subtitle(None);
         
-        // Create menu button for the header bar
-        let menu_button = gtk::MenuButton::new();
-        let menu_icon = gtk::Image::from_icon_name(Some("open-menu-symbolic"), gtk::IconSize::Menu);
-        menu_button.set_image(Some(&menu_icon));
+        // Create menu button for app settings
+        let menu_button = MenuButton::new();
+        let menu_icon = Image::from_icon_name("open-menu-symbolic");
+        menu_button.set_child(Some(&menu_icon));
         
         // Create the menu model
         let menu_model = gio::Menu::new();
@@ -123,35 +122,35 @@ impl Application {
         let dashboard = Dashboard::new(engine.clone());
         let dashboard_widget = dashboard.widget();
         let dashboard_label = gtk::Label::new(Some("Dashboard"));
-        dashboard_label.set_angle(90.0);
+        dashboard_label.add_css_class("sidebar-label");
         notebook.append_page(dashboard_widget, Some(&dashboard_label));
         
         // Create and add the login configuration
         let login_config = LoginConfigView::new(engine.clone());
         let login_config_widget = login_config.widget();
         let login_config_label = gtk::Label::new(Some("Target Config"));
-        login_config_label.set_angle(90.0);
+        login_config_label.add_css_class("sidebar-label");
         notebook.append_page(login_config_widget, Some(&login_config_label));
         
         // Create and add the wordlist manager
         let wordlist_manager = WordlistManager::new(engine.clone());
         let wordlist_manager_widget = wordlist_manager.widget();
         let wordlist_manager_label = gtk::Label::new(Some("Wordlists"));
-        wordlist_manager_label.set_angle(90.0);
+        wordlist_manager_label.add_css_class("sidebar-label");
         notebook.append_page(wordlist_manager_widget, Some(&wordlist_manager_label));
         
         // Create and add the statistics view
         let statistics = StatisticsView::new(engine.clone());
         let statistics_widget = statistics.widget();
         let statistics_label = gtk::Label::new(Some("Statistics"));
-        statistics_label.set_angle(90.0);
+        statistics_label.add_css_class("sidebar-label");
         notebook.append_page(statistics_widget, Some(&statistics_label));
         
         // Create and add the log viewer
         let log_viewer = LogViewer::new(engine.clone());
         let log_viewer_widget = log_viewer.widget();
         let log_viewer_label = gtk::Label::new(Some("Logs"));
-        log_viewer_label.set_angle(90.0);
+        log_viewer_label.add_css_class("sidebar-label");
         notebook.append_page(log_viewer_widget, Some(&log_viewer_label));
         
         // Set up the start button
@@ -264,8 +263,12 @@ impl Application {
             },
         );
         
-        // Store the components
-        *self.window.borrow_mut() = Some(window.clone());
+        // Show the window
+        window.set_default_size(800, 600);
+        window.show();
+        
+        // Store references
+        *self.window.borrow_mut() = Some(window);
         *self.dashboard.borrow_mut() = Some(dashboard);
         *self.login_config.borrow_mut() = Some(login_config);
         *self.wordlist_manager.borrow_mut() = Some(wordlist_manager);
@@ -278,8 +281,5 @@ impl Application {
                 error!("Failed to create default session: {}", e);
             }
         }
-        
-        // Show all widgets
-        window.show_all();
     }
 } 

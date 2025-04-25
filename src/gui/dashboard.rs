@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use log::{debug, info, error};
+use chrono;
 
 /// Dashboard page for displaying attack statistics
 pub struct DashboardPage {
@@ -247,8 +248,9 @@ impl DashboardPage {
             Ok(page) => page,
             Err(_) => {
                 log::error!("Unable to unwrap Rc in Dashboard");
-                // Create a new instance as fallback
-                DashboardPage::new(engine.clone())
+                // Create a new instance as fallback with a cloned engine
+                let engine_clone = engine.clone();
+                DashboardPage::new(engine_clone)
             }
         }
     }
@@ -410,7 +412,7 @@ impl Dashboard {
         
         // Create header
         let header_label = gtk::Label::new(Some("Attack Dashboard"));
-        header_label.get_style_context().add_class("title-1");
+        header_label.style_context().add_class("title-1");
         widget.append(&header_label);
         
         // Create configuration grid
@@ -758,53 +760,46 @@ impl Dashboard {
     /// Update progress display
     pub fn update_progress(&self, progress: &AttackProgress) {
         // Update progress bar
-        let percentage = (progress.progress * 100.0) as i32;
-        self.progress_bar.set_fraction(progress.progress);
+        let percentage = if progress.total_attempts > 0 {
+            (progress.attempts_made as f64 / progress.total_attempts as f64)
+        } else {
+            0.0
+        };
+        self.progress_bar.set_fraction(percentage);
         
         // Update status label
+        let percentage_int = (percentage * 100.0) as i32;
         let status_text = match progress.status {
-            AttackStatus::Idle => "Status: Idle",
-            AttackStatus::Running => format!("Status: Running ({percentage}%)"),
-            AttackStatus::Paused => format!("Status: Paused ({percentage}%)"),
-            AttackStatus::Completed => "Status: Completed",
-            AttackStatus::Cancelled => "Status: Cancelled",
-            AttackStatus::Error => "Status: Error",
+            AttackStatus::Idle => "Status: Idle".to_string(),
+            AttackStatus::Running => format!("Status: Running ({percentage_int}%)"),
+            AttackStatus::Paused => format!("Status: Paused ({percentage_int}%)"),
+            AttackStatus::Completed => "Status: Completed".to_string(),
+            AttackStatus::Failed => "Status: Failed".to_string(),
         };
         self.status_label.set_text(&status_text);
         
-        // Update results if there are any new credentials
-        if let Some(credentials) = &progress.credentials {
-            if !credentials.is_empty() {
-                // Get buffer from TextView
-                let buffer = self.results_view.buffer();
-                
-                // Get the end of the buffer
-                let mut end_iter = buffer.end_iter();
-                
-                // Add each credential
-                for credential in credentials {
-                    // Add newline if buffer is not empty
-                    if buffer.char_count() > 0 {
-                        buffer.insert(&mut end_iter, "\n");
-                    }
-                    
-                    // Add credential information
-                    let text = format!("[{}] {}@{}: {}", 
-                        credential.timestamp.format("%Y-%m-%d %H:%M:%S"),
-                        credential.username,
-                        credential.target,
-                        credential.password);
-                        
-                    buffer.insert(&mut end_iter, &text);
-                }
-                
-                // Scroll to the end
-                let mark = buffer.create_mark(None, &buffer.end_iter(), false);
-                if let Some(mark) = mark {
-                    self.results_view.scroll_to_mark(&mark, 0.0, false, 0.0, 1.0);
-                    buffer.delete_mark(&mark);
-                }
-            }
+        // Update attempts label
+        self.attempts_label.set_text(&format!("{} / {}", progress.attempts_made, progress.total_attempts));
+        
+        // Update successes label
+        self.successes_label.set_text(&format!("{}", progress.successful_attempts));
+        
+        // Update time elapsed
+        let elapsed = if let Some(start_time) = progress.start_time {
+            let now = chrono::Utc::now();
+            let duration = now.signed_duration_since(start_time);
+            let seconds = duration.num_seconds();
+            crate::gui::utils::format_duration(seconds as u64)
+        } else {
+            "00:00:00".to_string()
+        };
+        self.time_elapsed_label.set_text(&elapsed);
+        
+        // Update ETA
+        if let Some(eta) = progress.estimated_time_remaining {
+            self.eta_label.set_text(&crate::gui::utils::format_duration(eta));
+        } else {
+            self.eta_label.set_text("--:--:--");
         }
     }
 } 

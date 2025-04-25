@@ -57,7 +57,9 @@ pub fn open_file_chooser_dialog(
     
     main_loop.run();
     
-    result.borrow().clone()
+    // Get and return the result, ensuring it's properly cloned before returning
+    let path_option = result.borrow().clone();
+    path_option
 }
 
 /// Open a save file dialog
@@ -110,7 +112,9 @@ pub fn save_file_dialog(
     
     main_loop.run();
     
-    result.borrow().clone()
+    // Get and return the result, ensuring it's properly cloned before returning
+    let path_option = result.borrow().clone();
+    path_option
 }
 
 /// Format duration as HH:MM:SS

@@ -43,6 +43,11 @@ fn include_css() -> String {
         margin-bottom: 6px;
     }
     
+    .sidebar-label {
+        transform: rotate(90deg);
+        margin: 15px 0;
+    }
+    
     .success-text {
         color: #2ecc71;
     }

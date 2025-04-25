@@ -316,8 +316,9 @@ impl WordlistManagerPage {
             Ok(page) => page,
             Err(_) => {
                 log::error!("Unable to unwrap Rc in WordlistManager");
-                // Create a new instance as fallback
-                WordlistManagerPage::new(engine.clone())
+                // Create a new instance as fallback with a cloned engine
+                let engine_clone = engine.clone();
+                WordlistManagerPage::new(engine_clone)
             }
         }
     }
