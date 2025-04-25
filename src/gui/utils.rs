@@ -4,6 +4,8 @@ use gtk::{
 };
 use gtk::glib;
 use std::path::PathBuf;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Open a file chooser dialog
 pub fn open_file_chooser_dialog(
@@ -32,13 +34,30 @@ pub fn open_file_chooser_dialog(
     }
 
     // Set up response handling 
-    let response = dialog.run();
+    let result = Rc::new(RefCell::new(None));
+    let result_clone = result.clone();
     
-    if response == ResponseType::Accept {
-        dialog.file().and_then(|file| file.path())
-    } else {
-        None
-    }
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            *result_clone.borrow_mut() = dialog.file().and_then(|file| file.path());
+        }
+    });
+    
+    // Present the dialog and wait until a response is received
+    dialog.show();
+    
+    // Wait until response is received
+    let context = glib::MainContext::default();
+    let main_loop = glib::MainLoop::new(Some(&context), false);
+    
+    let main_loop_clone = main_loop.clone();
+    dialog.connect_response(move |_, _| {
+        main_loop_clone.quit();
+    });
+    
+    main_loop.run();
+    
+    result.borrow().clone()
 }
 
 /// Open a save file dialog
@@ -67,14 +86,31 @@ pub fn save_file_dialog(
         dialog.add_filter(&filter);
     }
     
-    // Run the dialog
-    let response = dialog.run();
+    // Set up response handling
+    let result = Rc::new(RefCell::new(None));
+    let result_clone = result.clone();
     
-    if response == ResponseType::Accept {
-        dialog.file().and_then(|file| file.path())
-    } else {
-        None
-    }
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            *result_clone.borrow_mut() = dialog.file().and_then(|file| file.path());
+        }
+    });
+    
+    // Present the dialog and wait until a response is received
+    dialog.show();
+    
+    // Wait until response is received
+    let context = glib::MainContext::default();
+    let main_loop = glib::MainLoop::new(Some(&context), false);
+    
+    let main_loop_clone = main_loop.clone();
+    dialog.connect_response(move |_, _| {
+        main_loop_clone.quit();
+    });
+    
+    main_loop.run();
+    
+    result.borrow().clone()
 }
 
 /// Format duration as HH:MM:SS

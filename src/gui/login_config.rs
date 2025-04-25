@@ -431,7 +431,7 @@ impl LoginConfigView {
         
         // Create header
         let header_label = gtk::Label::new(Some("Connection Configuration"));
-        header_label.get_style_context().add_class("title-1");
+        header_label.style_context().add_class("title-1");
         widget.append(&header_label);
         
         // Create protocol selector
@@ -486,39 +486,39 @@ impl LoginConfigView {
         // SSH options
         let ssh_options = create_ssh_options();
         protocol_stack.add_titled(&ssh_options, Some("SSH"), "SSH");
-        protocol_options.insert(Protocol::SSH, ssh_options);
+        protocol_options.insert(Protocol::SSH, ssh_options.into());
         
         // FTP options
         let ftp_options = create_ftp_options();
         protocol_stack.add_titled(&ftp_options, Some("FTP"), "FTP");
-        protocol_options.insert(Protocol::FTP, ftp_options);
+        protocol_options.insert(Protocol::FTP, ftp_options.into());
         
         // HTTP options
         let http_options = create_http_options();
         protocol_stack.add_titled(&http_options, Some("HTTP"), "HTTP");
-        protocol_options.insert(Protocol::HTTP, http_options.clone());
-        protocol_options.insert(Protocol::HTTPS, http_options);
+        protocol_options.insert(Protocol::HTTP, http_options.clone().into());
+        protocol_options.insert(Protocol::HTTPS, http_options.into());
         
         // SMTP options
         let smtp_options = create_smtp_options();
         protocol_stack.add_titled(&smtp_options, Some("SMTP"), "SMTP");
-        protocol_options.insert(Protocol::SMTP, smtp_options.clone());
-        protocol_options.insert(Protocol::SMTPS, smtp_options);
+        protocol_options.insert(Protocol::SMTP, smtp_options.clone().into());
+        protocol_options.insert(Protocol::SMTPS, smtp_options.into());
         
         // MySQL options
         let mysql_options = create_mysql_options();
         protocol_stack.add_titled(&mysql_options, Some("MySQL"), "MySQL");
-        protocol_options.insert(Protocol::MySQL, mysql_options);
+        protocol_options.insert(Protocol::MySQL, mysql_options.into());
         
         // PostgreSQL options
         let pg_options = create_postgres_options();
         protocol_stack.add_titled(&pg_options, Some("PostgreSQL"), "PostgreSQL");
-        protocol_options.insert(Protocol::PostgreSQL, pg_options);
+        protocol_options.insert(Protocol::PostgreSQL, pg_options.into());
         
         // SMB options
         let smb_options = create_smb_options();
         protocol_stack.add_titled(&smb_options, Some("SMB"), "SMB");
-        protocol_options.insert(Protocol::SMB, smb_options);
+        protocol_options.insert(Protocol::SMB, smb_options.into());
         
         // Add options frame
         let options_frame = gtk::Frame::new(Some("Protocol-specific Options"));

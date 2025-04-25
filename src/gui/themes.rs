@@ -1,5 +1,6 @@
 use gtk::prelude::*;
 use gtk::gdk;
+use gtk::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 
 /// Initialize application themes
 pub fn initialize_themes() {
@@ -11,13 +12,13 @@ pub fn initialize_themes() {
         }
     };
 
-    let provider = gtk::CssProvider::new();
+    let provider = CssProvider::new();
     provider.load_from_data(include_css().as_str());
     
-    gtk::StyleContext::add_provider_for_display(
+    gtk::style_context_add_provider_for_display(
         &display,
         &provider,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
 }
 

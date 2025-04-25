@@ -15,6 +15,7 @@ use crate::core::Engine;
 use crate::core::wordlist::WordlistManager as CoreWordlistManager;
 
 /// Wordlist manager page
+#[derive(Clone)]
 pub struct WordlistManagerPage {
     /// Root widget
     root: GtkBox,
@@ -328,20 +329,36 @@ impl WordlistManagerPage {
     
     /// Handle add username list button click
     fn on_add_username_list_clicked(&self) {
-        if let Some(parent) = self.root.downcast::<gtk::Window>().ok() {
+        if let Some(window) = self.root.ancestor(gtk::Window::static_type()) {
+            let window = window.downcast_ref::<gtk::Window>().unwrap();
+            
             let file_chooser = gtk::FileChooserNative::new(
                 Some("Select Wordlist File"),
-                Some(&parent),
+                Some(window),
                 gtk::FileChooserAction::Open,
                 Some("Open"),
                 Some("Cancel"),
             );
             
+            let file_filter = gtk::FileFilter::new();
+            file_filter.set_name(Some("Text Files"));
+            file_filter.add_pattern("*.txt");
+            file_filter.add_pattern("*.lst");
+            file_filter.add_pattern("*.list");
+            file_filter.add_pattern("*.dict");
+            file_chooser.add_filter(&file_filter);
+            
+            let instance = self.clone();
+            
             file_chooser.connect_response(move |dialog, response| {
                 if response == gtk::ResponseType::Accept {
                     if let Some(file) = dialog.file() {
                         if let Some(path) = file.path() {
-                            // TODO: Implement file selection and list addition
+                            if let Err(e) = instance.add_wordlist(path, true) {
+                                error!("Failed to add username list: {}", e);
+                            } else {
+                                instance.refresh_wordlists();
+                            }
                         }
                     }
                 }
@@ -353,7 +370,43 @@ impl WordlistManagerPage {
     
     /// Handle add password list button click
     fn on_add_password_list_clicked(&self) {
-        // TODO: Implement file selection and list addition
+        if let Some(window) = self.root.ancestor(gtk::Window::static_type()) {
+            let window = window.downcast_ref::<gtk::Window>().unwrap();
+            
+            let file_chooser = gtk::FileChooserNative::new(
+                Some("Select Wordlist File"),
+                Some(window),
+                gtk::FileChooserAction::Open,
+                Some("Open"),
+                Some("Cancel"),
+            );
+            
+            let file_filter = gtk::FileFilter::new();
+            file_filter.set_name(Some("Text Files"));
+            file_filter.add_pattern("*.txt");
+            file_filter.add_pattern("*.lst");
+            file_filter.add_pattern("*.list");
+            file_filter.add_pattern("*.dict");
+            file_chooser.add_filter(&file_filter);
+            
+            let instance = self.clone();
+            
+            file_chooser.connect_response(move |dialog, response| {
+                if response == gtk::ResponseType::Accept {
+                    if let Some(file) = dialog.file() {
+                        if let Some(path) = file.path() {
+                            if let Err(e) = instance.add_wordlist(path, false) {
+                                error!("Failed to add password list: {}", e);
+                            } else {
+                                instance.refresh_wordlists();
+                            }
+                        }
+                    }
+                }
+            });
+            
+            file_chooser.show();
+        }
     }
     
     /// Handle save rules button click
@@ -364,6 +417,140 @@ impl WordlistManagerPage {
     /// Handle apply rules button click
     fn on_apply_rules_clicked(&self) {
         // TODO: Implement rules application
+    }
+    
+    /// Add a wordlist file
+    fn add_wordlist(&self, path: impl AsRef<Path>, is_username: bool) -> anyhow::Result<()> {
+        // Extract the filename from the path
+        let filename = match path.as_ref().file_name() {
+            Some(filename) => filename.to_string_lossy().to_string(),
+            None => return Err(anyhow::anyhow!("Invalid filename")),
+        };
+        
+        // Get the engine as immutable reference since we can't modify it directly
+        let engine_ref = &self.engine;
+        
+        // Get the wordlist type
+        let wordlist_type = if is_username {
+            crate::core::wordlist::WordlistType::Username
+        } else {
+            crate::core::wordlist::WordlistType::Password
+        };
+        
+        // Get the base directory from the engine to construct the wordlist directory
+        let base_dir = engine_ref.base_dir().clone();
+        let wordlist_dir = base_dir.join("wordlists");
+        
+        // Create the directory if it doesn't exist
+        if !wordlist_dir.exists() {
+            fs::create_dir_all(&wordlist_dir)?;
+        }
+        
+        // Create the target directory based on the wordlist type
+        let target_dir = if is_username {
+            wordlist_dir.join("usernames")
+        } else {
+            wordlist_dir.join("passwords")
+        };
+        
+        if !target_dir.exists() {
+            fs::create_dir_all(&target_dir)?;
+        }
+        
+        // Copy the wordlist file to the target directory
+        let target_path = target_dir.join(&filename);
+        fs::copy(path.as_ref(), &target_path)?;
+        
+        info!("Added wordlist: {} ({})", filename, if is_username { "username" } else { "password" });
+        
+        // Refresh the UI
+        self.refresh_wordlists();
+        
+        Ok(())
+    }
+    
+    /// Refresh the wordlists in the UI
+    fn refresh_wordlists(&self) {
+        // Clear the list boxes
+        while let Some(child) = self.username_list_box.first_child() {
+            self.username_list_box.remove(&child);
+        }
+        
+        while let Some(child) = self.password_list_box.first_child() {
+            self.password_list_box.remove(&child);
+        }
+        
+        // Get the base directory to scan for wordlists
+        let base_dir = self.engine.base_dir().clone();
+        let wordlist_dir = base_dir.join("wordlists");
+        
+        // Add username lists
+        let username_dir = wordlist_dir.join("usernames");
+        if username_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&username_dir) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.is_file() {
+                            // Get file name
+                            if let Some(name) = path.file_name() {
+                                let name_str = name.to_string_lossy().to_string();
+                                
+                                // Create row
+                                let row = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+                                let label = gtk::Label::new(Some(&name_str));
+                                label.set_halign(gtk::Align::Start);
+                                label.set_hexpand(true);
+                                row.append(&label);
+                                
+                                // Add count if we can read the file
+                                if let Ok(content) = fs::read_to_string(&path) {
+                                    let count = content.lines().filter(|line| !line.trim().is_empty()).count();
+                                    let count_label = gtk::Label::new(Some(&format!("{} words", count)));
+                                    row.append(&count_label);
+                                }
+                                
+                                self.username_list_box.append(&row);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Add password lists
+        let password_dir = wordlist_dir.join("passwords");
+        if password_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&password_dir) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.is_file() {
+                            // Get file name
+                            if let Some(name) = path.file_name() {
+                                let name_str = name.to_string_lossy().to_string();
+                                
+                                // Create row
+                                let row = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+                                let label = gtk::Label::new(Some(&name_str));
+                                label.set_halign(gtk::Align::Start);
+                                label.set_hexpand(true);
+                                row.append(&label);
+                                
+                                // Add count if we can read the file
+                                if let Ok(content) = fs::read_to_string(&path) {
+                                    let count = content.lines().filter(|line| !line.trim().is_empty()).count();
+                                    let count_label = gtk::Label::new(Some(&format!("{} words", count)));
+                                    row.append(&count_label);
+                                }
+                                
+                                self.password_list_box.append(&row);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -689,10 +876,8 @@ impl WordlistManager {
             Some(if is_username { "Select Username List" } else { "Select Password List" }),
             None::<&gtk::Window>,
             gtk::FileChooserAction::Open,
-            &[
-                ("Cancel", gtk::ResponseType::Cancel),
-                ("Open", gtk::ResponseType::Accept),
-            ],
+            Some("Open"),
+            Some("Cancel"),
         );
         
         let file_filter = gtk::FileFilter::new();
@@ -741,7 +926,6 @@ impl WordlistManager {
                     }
                 }
             }
-            dialog.close();
         });
         
         file_chooser.show();

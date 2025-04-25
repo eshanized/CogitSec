@@ -772,14 +772,17 @@ impl Dashboard {
         };
         self.status_label.set_text(&status_text);
         
-        // Update results if there are new credentials
-        if !progress.credentials.is_empty() {
-            if let Some(buffer) = self.results_view.buffer() {
+        // Update results if there are any new credentials
+        if let Some(credentials) = &progress.credentials {
+            if !credentials.is_empty() {
+                // Get buffer from TextView
+                let buffer = self.results_view.buffer();
+                
                 // Get the end of the buffer
                 let mut end_iter = buffer.end_iter();
                 
                 // Add each credential
-                for credential in &progress.credentials {
+                for credential in credentials {
                     // Add newline if buffer is not empty
                     if buffer.char_count() > 0 {
                         buffer.insert(&mut end_iter, "\n");
