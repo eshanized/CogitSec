@@ -62,12 +62,12 @@ impl Application {
         
         // Set up the main layout
         let main_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        window.add(&main_box);
+        window.set_child(Some(&main_box));
         
         // Create header bar
         let header = HeaderBar::new();
-        header.set_title_widget(Some(&Label::new(Some("CogitSec"))));
-        header.set_subtitle(None);
+        let title_label = Label::new(Some("CogitSec"));
+        header.set_title_widget(Some(&title_label));
         
         // Create menu button for app settings
         let menu_button = MenuButton::new();
@@ -98,11 +98,11 @@ impl Application {
         
         // Create action buttons
         let start_button = gtk::Button::with_label("Start Attack");
-        start_button.get_style_context().add_class("suggested-action");
+        start_button.add_css_class("suggested-action");
         header.pack_start(&start_button);
         
         let stop_button = gtk::Button::with_label("Stop");
-        stop_button.get_style_context().add_class("destructive-action");
+        stop_button.add_css_class("destructive-action");
         header.pack_start(&stop_button);
         
         let pause_button = gtk::Button::with_label("Pause");
@@ -113,7 +113,7 @@ impl Application {
         // Create notebook for different views
         let notebook = gtk::Notebook::new();
         notebook.set_tab_pos(gtk::PositionType::Left);
-        main_box.pack_start(&notebook, true, true, 0);
+        main_box.append(&notebook);
         
         // Get the engine reference
         let engine = self.engine.clone();

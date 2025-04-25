@@ -398,6 +398,18 @@ pub struct Dashboard {
     
     /// Results text view
     results_view: gtk::TextView,
+    
+    /// Attempts label
+    attempts_label: gtk::Label,
+    
+    /// Successes label
+    successes_label: gtk::Label,
+    
+    /// Time elapsed label
+    time_elapsed_label: gtk::Label,
+    
+    /// Estimated time remaining label
+    eta_label: gtk::Label,
 }
 
 impl Dashboard {
@@ -674,6 +686,10 @@ impl Dashboard {
             progress_bar,
             status_label,
             results_view,
+            attempts_label: attempts_value,
+            successes_label: success_value,
+            time_elapsed_label: time_value,
+            eta_label: eta_value,
         }
     }
     

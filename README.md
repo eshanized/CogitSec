@@ -170,6 +170,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 CogitSec is designed for legitimate security testing with proper authorization. Unauthorized testing of systems may violate laws and regulations. Always ensure you have explicit permission before testing any system that you do not own. The developers assume no liability for misuse of this software.
 
+## Security
+
+This project uses GitHub CodeQL for automated security scanning. The scanner checks for:
+
+- Memory safety issues
+- Buffer overflows
+- Path traversals
+- Injection vulnerabilities 
+- And other security concerns
+
+For more information about the security setup, see [.github/README.md](.github/README.md).
+
 ---
 
 <div align="center">
